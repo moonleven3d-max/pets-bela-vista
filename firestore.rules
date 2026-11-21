@@ -25,14 +25,21 @@ service cloud.firestore {
     function sameOwnersAsPet(id) {
       return incoming().ownerUid == getAfter(petPath(id)).data.ownerUid && incoming().get("ownerUids", []) == getAfter(petPath(id)).data.get("ownerUids", []);
     }
+    // Número de WhatsApp usado no login (o e-mail interno é <numero>@login.petsbelavista.invalid)
+    function loginKey() { return request.auth.token.email.split("@")[0]; }
+    function isLoginAccount() { return signedIn() && request.auth.token.email is string && request.auth.token.email.matches("^[0-9]{10,13}@login[.]petsbelavista[.]invalid$"); }
+    function petOwnersList(petId) { return [get(petPath(petId)).data.ownerUid].concat(get(petPath(petId)).data.get("ownerUids", [])); }
+    function isPrimaryOwner(res) { return signedIn() && res.data.ownerUid == request.auth.uid; }
     function shortText(field, max) { return !(field in incoming()) || (incoming()[field] is string && incoming()[field].size() <= max); }
 
     // ---------- Moradores ----------
     // Cadastro individual: nasce "pending"; a administração aprova após conferir o WhatsApp no grupo do bairro.
     match /members/{uid} {
-      allow create: if signedIn() && request.auth.uid == uid
+      // Só contas criadas pelo site (login por WhatsApp), e o número salvo tem que ser o mesmo do login.
+      allow create: if isLoginAccount() && request.auth.uid == uid
                     && incoming().active == false && incoming().status == "pending"
-                    && incoming().keys().hasOnly(["name", "phone", "active", "status", "createdAt"])
+                    && incoming().keys().hasOnly(["name", "phone", "phoneKey", "active", "status", "createdAt"])
+                    && incoming().phoneKey == loginKey()
                     && incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 70
                     && incoming().phone is string && incoming().phone.size() <= 20;
       allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
@@ -51,7 +58,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAdmin() || (isResident() && keepsOwner() && incoming().get("ownerUids", []) == [] && validPublicPet());
       allow update: if isAdmin() || (isResident() && isOwnerOf(resource) && ownersUnchanged() && validPublicPet());
-      allow delete: if isAdmin() || (isResident() && isOwnerOf(resource));
+      allow delete: if isAdmin() || (isResident() && isPrimaryOwner(resource));
     }
 
     // ---------- Contatos dos responsáveis (somente moradores conectados) ----------
@@ -62,7 +69,7 @@ service cloud.firestore {
                     && incoming().keys().hasOnly(["petId", "petName", "guardians", "allowAlerts", "ownerUid", "ownerUids"])
                     && incoming().guardians is list && incoming().guardians.size() <= 3
                     && incoming().allowAlerts is bool);
-      allow delete: if isAdmin() || (isResident() && isOwnerOf(resource));
+      allow delete: if isAdmin() || (isResident() && isPrimaryOwner(resource));
     }
 
     // ---------- Endereço / referências da casa (privado: dono e administração) ----------
@@ -70,17 +77,21 @@ service cloud.firestore {
       allow read: if isAdmin() || isOwnerOf(resource);
       allow create, update: if isAdmin() || (isResident() && ownsPetAfter(id) && sameOwnersAsPet(id)
                     && incoming().keys().hasOnly(["petId", "ownerUid", "ownerUids", "street", "number", "referenceUnit", "houseColor", "nearbyReference"]));
-      allow delete: if isAdmin() || (isResident() && isOwnerOf(resource));
+      allow delete: if isAdmin() || (isResident() && isPrimaryOwner(resource));
     }
 
     // ---------- Alertas de desaparecimento ----------
     // Os responsáveis do pet (principal ou co-responsáveis) publicam e encerram o alerta (id do documento = id do pet).
+    function validLost() {
+      return incoming().keys().hasOnly(["petId", "name", "photo", "location", "seenAt", "notes", "ownerUid", "ownerUids", "createdBy", "status", "createdAt", "resolvedAt"])
+          && shortText("name", 40) && shortText("seenAt", 30);
+    }
     match /lost_public/{id} {
       allow read: if true;
-      allow create: if isAdmin() || (isResident() && incoming().petId == id && ownsPetAfter(id) && incoming().status == "active"
+      allow create: if isAdmin() || (isResident() && incoming().petId == id && ownsPetAfter(id) && incoming().status == "active" && validLost()
                     && shortText("location", 140) && shortText("notes", 400) && shortText("photo", 900000));
       allow update: if isAdmin() || (isResident() && incoming().petId == id && ownsPetAfter(id)
-                    && incoming().status in ["active", "resolved"]
+                    && incoming().status in ["active", "resolved"] && validLost()
                     && shortText("location", 140) && shortText("notes", 400) && shortText("photo", 900000));
       allow delete: if isAdmin();
     }
@@ -88,7 +99,10 @@ service cloud.firestore {
     // ---------- Avistamentos de pets cadastrados ----------
     match /sightings/{id} {
       allow create: if isMember() && incoming().reporterUid == request.auth.uid
-                    && shortText("location", 140) && shortText("notes", 300);
+                    && incoming().keys().hasOnly(["petId", "petName", "petOwnerUid", "petOwnerUids", "location", "seenAt", "notes", "reporterUid", "reporterName", "createdAt"])
+                    && incoming().petId is string && exists(petPath(incoming().petId))
+                    && incoming().petOwnerUids is list && incoming().petOwnerUids.hasOnly(petOwnersList(incoming().petId))
+                    && shortText("location", 140) && shortText("notes", 300) && shortText("petName", 40) && shortText("reporterName", 70) && shortText("seenAt", 30);
       allow read: if isAdmin() || (signedIn() && request.auth.uid in resource.data.petOwnerUids);
       allow update, delete: if isAdmin();
     }
@@ -100,13 +114,19 @@ service cloud.firestore {
     }
     match /found_submissions/{id} {
       allow create: if incoming().status == "pending"
-                    && shortText("location", 120) && shortText("traits", 180) && shortText("photo", 900000);
+                    && incoming().keys().hasOnly(["type", "appearance", "traits", "location", "seenDate", "reporter", "phone", "reporterUid", "photo", "status", "createdAt"])
+                    && (incoming().get("reporterUid", "") == "" || (signedIn() && incoming().reporterUid == request.auth.uid))
+                    && shortText("type", 20) && shortText("appearance", 100) && shortText("location", 120) && shortText("traits", 180)
+                    && shortText("seenDate", 20) && shortText("reporter", 70) && shortText("phone", 20) && shortText("photo", 900000);
       allow read, update, delete: if isAdmin();
     }
 
     // ---------- Reivindicações ----------
     match /claim_submissions/{id} {
-      allow create: if incoming().status == "pending" && shortText("proof", 500);
+      allow create: if incoming().status == "pending"
+                    && incoming().keys().hasOnly(["foundPetId", "owner", "phone", "proof", "claimantUid", "status", "createdAt"])
+                    && (incoming().get("claimantUid", "") == "" || (signedIn() && incoming().claimantUid == request.auth.uid))
+                    && shortText("foundPetId", 60) && shortText("owner", 70) && shortText("phone", 20) && shortText("proof", 500);
       allow read, update, delete: if isAdmin();
     }
 

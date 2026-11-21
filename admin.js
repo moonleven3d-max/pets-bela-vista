@@ -21,8 +21,10 @@ const member = uid => L.members.find(m => m.id === uid);
 const canon = v => { let d = String(v || "").replace(/\D/g, ""); if ((d.length === 12 || d.length === 13) && d.startsWith("55")) d = d.slice(2); return d; };
 const ownersList = p => [p.ownerUid, ...(p.ownerUids || [])].filter(Boolean);
 // Pets em que o WhatsApp do morador aparece como responsável, mas a conta ainda não está vinculada
+// Número do login (phoneKey) é o que vale; o campo "phone" é só o que a pessoa digitou
+const loginPhone = m => canon(m.phoneKey || m.phone);
 function phoneMatches(m) {
-  const ph = canon(m.phone); if (ph.length < 10) return [];
+  const ph = loginPhone(m); if (ph.length < 10) return [];
   return L.pets.filter(p => !ownersList(p).includes(m.id) && (contactOf(p.id)?.guardians || []).some(g => canon(g.phone) === ph));
 }
 const memberName = uid => uid ? (member(uid)?.name || (uid === ADMIN_UID ? "Administração" : "conta sem cadastro")) : "não vinculado";
@@ -63,7 +65,7 @@ function render() {
   const approvedMatches = L.members.filter(m => m.active === true).flatMap(m => phoneMatches(m).map(p => ({ m, p })));
   const pend = [
     ...approvedMatches.map(({ m, p }) => row(p.photo, `Vincular ${esc(p.name)} a ${esc(m.name || "morador")}<span class="tag">WhatsApp confere</span>`, `${esc(m.name)} (${esc(m.phone)}) está cadastrado(a) como responsável de ${esc(p.name)}, mas a conta dele(a) ainda não está vinculada ao pet.<br>Responsável atual: ${esc(ownersList(p).map(memberName).join(", ") || "nenhum")}`, btn("approve", "Vincular como responsável", { act: "link-owner", id: p.id, uid: m.id }))),
-    ...pendingMembers.map(m => row("", `Novo morador · ${esc(m.name || "")}<span class="tag">aguardando aprovação</span>`, `WhatsApp: <b>${esc(m.phone || "não informado")}</b> · cadastro em ${fmtTs(m.createdAt)}<br>Confira se este número está no grupo de WhatsApp do bairro antes de aprovar.${phoneMatches(m).length ? `<br>Ao aprovar, será vinculado(a) a: <b>${esc(phoneMatches(m).map(p => p.name).join(", "))}</b> (WhatsApp cadastrado como responsável).` : ""}`, memberActions(m))),
+    ...pendingMembers.map(m => row("", `Novo morador · ${esc(m.name || "")}<span class="tag">aguardando aprovação</span>`, `WhatsApp do login: <b>${esc(loginPhone(m) || "não informado")}</b> · cadastro em ${fmtTs(m.createdAt)}<br>1) Confira se o número está no grupo do bairro. 2) Confirme com a pessoa pelo WhatsApp que foi ela quem criou o acesso (qualquer um pode digitar o número de outra pessoa).${phoneMatches(m).length ? `<br>Ao aprovar, será vinculado(a) a: <b>${esc(phoneMatches(m).map(p => p.name).join(", "))}</b> (WhatsApp cadastrado como responsável).` : ""}`, `<a class="small-btn approve" href="https://wa.me/55${esc(loginPhone(m))}?text=${encodeURIComponent(`Olá, ${m.name || ""}! Aqui é a administração do Pets Bela Vista. Você criou um acesso no site com este número? Responda SIM para confirmarmos. 🐾`)}" target="_blank" rel="noopener">Confirmar no WhatsApp</a>` + memberActions(m))),
     ...pendingFound.map(s => row(s.photo, `Animal encontrado · ${esc(s.type || "")}`, `${esc(s.appearance || "")} ${esc(s.traits || "")}<br>📍 ${esc(s.location || "")} · ${esc(s.seenDate || "")}<br>Enviado por ${esc(s.reporter || "")} · ${esc(s.phone || "")}`, btn("approve", "Publicar", { act: "approve-found", id: s.id }) + btn("reject", "Excluir", { act: "del", col: "foundSubs", id: s.id }))),
     ...pendingClaims.map(s => { const f = L.found.find(x => x.id === s.foundPetId); return row(f?.photo, `Reivindicação · ${esc(s.owner || "")}`, `WhatsApp: ${esc(s.phone || "")}<br>Animal: ${esc(f ? `${f.type} visto em ${f.location}` : s.foundPetId || "não encontrado")}<br>Comprovação: ${esc(s.proof || "")}`, btn("approve", "Confirmar devolução", { act: "approve-claim", id: s.id }) + btn("reject", "Recusar", { act: "reject-claim", id: s.id })); }),
     ...L.petSubs.map(s => row(s.photo, `Cadastro antigo · ${esc(s.name || "Pet")}${published.has(s.id) ? '<span class="tag ok">já publicado</span>' : '<span class="tag">pendente</span>'}`, `${esc(s.owner || "")} · ${esc(s.phone || "")} · morador: ${esc(memberName(s.ownerUid))}<br>${esc([s.street, s.number, s.referenceUnit, s.houseColor, s.nearbyReference].filter(Boolean).join(" · "))}`, (published.has(s.id) ? "" : btn("approve", "Publicar pet", { act: "approve-petsub", id: s.id })) + btn("reject", published.has(s.id) ? "Remover duplicata" : "Excluir", { act: "del", col: "petSubs", id: s.id }))),
@@ -105,7 +107,7 @@ function renderMembers() {
   $("membersCount").textContent = L.members.length;
   $("membersList").innerHTML = v.map(m => {
     const [st, cls] = memberStatus(m), n = L.pets.filter(p => ownersList(p).includes(m.id)).length;
-    return `<div class="pending-item member-row" data-member-open="${esc(m.id)}" role="button" tabindex="0"><span class="pending-placeholder">♙</span><span class="pending-details"><b>${esc(m.name || "Morador")} <span class="tag ${cls}">${st}</span></b><small>WhatsApp: ${esc(m.phone || "não informado")} · ${n} pet(s)<br>Cadastro: ${fmtTs(m.createdAt)}<span class="member-row-hint"> · Ver ficha →</span></small></span><span class="pending-actions">${memberActions(m)}</span></div>`;
+    return `<div class="pending-item member-row" data-member-open="${esc(m.id)}" role="button" tabindex="0"><span class="pending-placeholder">♙</span><span class="pending-details"><b>${esc(m.name || "Morador")} <span class="tag ${cls}">${st}</span></b><small>WhatsApp: ${esc(loginPhone(m) || "não informado")} · ${n} pet(s)<br>Cadastro: ${fmtTs(m.createdAt)}<span class="member-row-hint"> · Ver ficha →</span></small></span><span class="pending-actions">${memberActions(m)}</span></div>`;
   }).join("") || '<p class="admin-note">Nenhum morador encontrado.</p>';
 }
 
@@ -114,9 +116,9 @@ function openMemberDetails(id) {
   const m = member(id); if (!m) return;
   const linked = L.pets.filter(p => ownersList(p).includes(id)), [st] = memberStatus(m);
   $("memberDetailsTitle").textContent = m.name || "Morador";
-  $("memberDetailsSubtitle").textContent = `WhatsApp: ${m.phone || "não informado"} · ${st}`;
+  $("memberDetailsSubtitle").textContent = `WhatsApp do login: ${loginPhone(m) || "não informado"} · ${st}`;
   $("memberDetailsBody").innerHTML = `<div class="resident-info-grid">
-    <div><small>Nome</small><b>${esc(m.name || "—")}</b></div><div><small>WhatsApp</small><b>${esc(m.phone || "—")}</b></div>
+    <div><small>Nome</small><b>${esc(m.name || "—")}</b></div><div><small>WhatsApp (login)</small><b>${esc(loginPhone(m) || "—")}</b></div>
     <div><small>Data de cadastro</small><b>${fmtTs(m.createdAt)}</b></div><div><small>Status da conta</small><b>${st}</b></div>
     <div class="resident-uid"><small>UID (identificador da conta)</small><code>${esc(m.id)}</code></div></div>
     <section class="resident-pets"><h3>Pets vinculados (${linked.length})</h3>${linked.length ? linked.map(p => `<div class="resident-pet">${p.photo ? `<img src="${esc(p.photo)}" alt="">` : "🐾"}<span><b>${esc(p.name)}</b><small>${esc([p.type, p.breed].filter(Boolean).join(" · "))}</small></span>${btn("approve", "Abrir", { act: "edit-pet", id: p.id })}</div>`).join("") : '<p class="admin-note">Nenhum pet vinculado. Para vincular um pet antigo (ex.: a Lua), abra o pet na lista e escolha este morador em “Responsável”.</p>'}</section>

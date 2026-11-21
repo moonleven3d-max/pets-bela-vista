@@ -409,7 +409,8 @@ async function ensureMemberDoc(user, name, phone) {
   const snap = await getDoc(ref);
   if (snap.exists()) return snap.data();
   // Contas criadas na versão anterior podem ter ficado sem cadastro em "members": cria agora, já ativo.
-  const data = { name: (name || "Morador").trim().slice(0, 70), phone: (phone || "").trim().slice(0, 20), active: false, status: "pending", createdAt: serverTimestamp() };
+  const key = (user.email || "").split("@")[0];
+  const data = { name: (name || "Morador").trim().slice(0, 70), phone: (phone || key).trim().slice(0, 20), phoneKey: key, active: false, status: "pending", createdAt: serverTimestamp() };
   await setDoc(ref, data);
   return data;
 }
@@ -441,7 +442,7 @@ async function signup() {
   try {
     const canon = canonicalPhone(d.phone);
     const cred = await createUserWithEmailAndPassword(auth, loginEmail(canon), d.password);
-    await setDoc(doc(db, "members", cred.user.uid), { name: d.name.trim(), phone: d.phone.trim(), active: false, status: "pending", createdAt: serverTimestamp() });
+    await setDoc(doc(db, "members", cred.user.uid), { name: d.name.trim(), phone: d.phone.trim(), phoneKey: canon, active: false, status: "pending", createdAt: serverTimestamp() });
     state.signingUp = false;
     f.reset(); modal("memberModal", false);
     await onUser(cred.user);
