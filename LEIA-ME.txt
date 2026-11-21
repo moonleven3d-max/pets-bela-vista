@@ -1,28 +1,22 @@
-PETS BELA VISTA — VERSÃO COM ANIMAIS ENCONTRADOS E REIVINDICAÇÃO
+PETS BELA VISTA — ATUALIZAÇÃO DO PAINEL
 
-FUNCIONALIDADES
-- Pets do bairro: cadastro de animais com tutor, aprovação administrativa e publicação dos dados públicos do animal.
-- Encontrados na rua: moradores podem enviar foto, características, local e data em que viram o animal. A publicação depende de aprovação. Não se presume abandono.
-- Reivindicação: alguém que reconheça o animal pode enviar dados e explicações para comprovar o vínculo. A administração analisa; se aprovada, o animal é marcado como reunido e sai da lista pública ativa.
-- Contatos e informações de quem enviou/reivindicou são privados e visíveis somente à administração.
-- Área administrativa: /admin.
+Esta versão atualiza a página inicial com:
+- apenas dois indicadores: pets cadastrados e pets encontrados na rua;
+- atalhos Meu pet fugiu, Avisei um pet na rua e Compartilhar pet;
+- painel de alertas ativos e avistamentos recentes;
+- botão de compartilhar link individual de cada pet;
+- formulário para tutor criar alerta de desaparecimento usando um pet já cadastrado.
 
-IMPORTANTE — PUBLICAR REGRAS FIRESTORE
-As novas funções dependem das regras atualizadas em firestore.rules. No Firebase Console > Firestore Database > Regras, substitua o conteúdo pelas regras deste arquivo e clique em Publicar. Sem isso, novos cadastros e carregamento das novas coleções podem falhar.
+PUBLICAÇÃO
+1. Substitua os arquivos do repositório GitHub pelo conteúdo desta pasta (mantenha os arquivos na raiz).
+2. No Firebase Console > Firestore Database > Regras, publique o conteúdo atualizado de firestore.rules.
+3. A Cloudflare Pages fará um novo deploy automaticamente.
+4. No Firebase Authentication, o login de moradores continua usando o provedor E-mail/senha internamente, sem pedir e-mail ao morador.
 
-COLEÇÕES
-- pets_public (pública): dados aprovados dos pets com tutor.
-- pet_submissions (privada): cadastros de pets aguardando aprovação.
-- found_public (pública): animais encontrados aprovados e ativos.
-- found_submissions (privada): envios de animais encontrados aguardando aprovação.
-- claim_submissions (privada): reivindicações aguardando análise.
+ALERTAS DE FUGA
+O tutor precisa estar conectado à área dos moradores. O alerta entra como pendente e aparece na área administrativa para aprovação. Depois de aprovado, aparece na página inicial e pode ser compartilhado. Os links individuais usam o identificador do pet no endereço, sem expor dados privados.
 
-FOTOS
-As fotos são comprimidas no navegador e guardadas como Data URL no Firestore. É adequado apenas para protótipo/baixo volume; antes de ampliar o uso, migrar imagens para Cloud Storage.
-
-ADMIN
-Apenas o UID administrativo configurado no firebase-config.js e nas regras pode acessar os registros privados e aprovar/rejeitar. Nunca compartilhe senhas ou credenciais privadas.
-
-
-NOVO: múltiplos responsáveis e alertas por WhatsApp
-O formulário aceita até três responsáveis. Os números só são disponibilizados no botão de alerta se a pessoa marcar a autorização específica. A autorização deixa claro que esses telefones ficarão visíveis aos visitantes. O botão abre o WhatsApp com mensagem pronta; o visitante informa o local no campo do cartão antes de enviar. Publique também as regras atualizadas de firestore.rules no Firebase.
+IMPORTANTE
+- O botão de avistamento leva à seção “Encontrados na rua”; o registro de avistamento continua sendo enviado pelo formulário de animal encontrado.
+- Os links de pet são compartilháveis e apontam para o site; o conteúdo detalhado continua na lista pública.
+- Não publique telefones ou endereços de tutores em coleções públicas.
