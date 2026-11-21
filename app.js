@@ -38,7 +38,9 @@ function isMemberActive() { return !!state.user && (state.member?.active === tru
 function isPending() { return !!state.user && !isAdminUser() && state.member?.active !== true && state.member?.status === "pending"; }
 const PENDING_MSG = "Seu cadastro está em análise: vamos confirmar se seu WhatsApp está no grupo do bairro. Depois da aprovação, você verá as informações adicionais dos pets.";
 function isAdminUser() { return state.user?.uid === ADMIN_UID; }
-function myPets() { return state.user ? state.pets.filter(p => p.ownerUid === state.user.uid) : []; }
+function isMine(p) { return !!state.user && !!p && (p.ownerUid === state.user.uid || (p.ownerUids || []).includes(state.user.uid)); }
+function myPets() { return state.pets.filter(isMine); }
+const ownersOf = p => ({ ownerUid: p.ownerUid || "", ownerUids: p.ownerUids || [] });
 function alertFor(petId) { return state.lost.find(a => (a.petId || a.id) === petId); }
 function lostMessage(a) {
   return `🚨 *PET DESAPARECIDO*\n\n*${a.name} está desaparecido(a)!*\n` +
@@ -76,13 +78,15 @@ async function load() {
     try {
       const qs = isAdminUser()
         ? [getDocs(collection(db, "pet_alert_contacts"))]
-        : [...(isMemberActive() ? [getDocs(query(collection(db, "pet_alert_contacts"), where("allowAlerts", "==", true)))] : []),
-           getDocs(query(collection(db, "pet_alert_contacts"), where("ownerUid", "==", state.user.uid)))];
+        : (isMemberActive() ? [getDocs(query(collection(db, "pet_alert_contacts"), where("allowAlerts", "==", true)))] : []);
       for (const snap of await Promise.all(qs)) snap.docs.forEach(d => state.contacts.set(d.data().petId || d.id, { id: d.id, ...d.data() }));
+      // Contatos dos meus pets (dono principal ou co-responsável), lidos um a um
+      const mine = await Promise.all(myPets().map(p => getDoc(doc(db, "pet_alert_contacts", p.id)).catch(() => null)));
+      mine.forEach(d => { if (d?.exists()) state.contacts.set(d.data().petId || d.id, { id: d.id, ...d.data() }); });
     } catch (e) { console.error("contatos", e); }
     if (!isAdminUser()) {
       try {
-        const s = await getDocs(query(collection(db, "sightings"), where("petOwnerUid", "==", state.user.uid)));
+        const s = await getDocs(query(collection(db, "sightings"), where("petOwnerUids", "array-contains", state.user.uid)));
         state.mySightings = s.docs.map(d => ({ id: d.id, ...d.data() })).sort(bySeconds);
       } catch (e) { console.error("avistamentos", e); }
     }
@@ -135,7 +139,7 @@ function renderDashboard() {
 }
 function renderAuth() {
   const on = !!state.user;
-  $("memberBtn").textContent = on ? (isAdminUser() ? "Administração conectada" : `Olá, ${(state.member?.name || "morador").split(" ")[0]}`) : "Entrar / Cadastrar morador";
+  $("memberBtn").textContent = on ? (isAdminUser() ? "Administração conectada" : `Olá, ${(state.member?.name || "morador").split(" ")[0]}`) : (matchMedia("(max-width:760px)").matches ? "Entrar" : "Entrar / Cadastrar morador");
   $("memberForm").hidden = on;
   $("memberConnectedActions").hidden = !on;
   $("goMyPets").hidden = isAdminUser();
@@ -152,7 +156,7 @@ async function openPetDetails(id, { pushUrl = true } = {}) {
   const a = alertFor(id);
   if (!p && a) p = { id, name: a.name, photo: a.photo, type: "" };
   if (!p) { toast("Pet não encontrado. O cadastro pode ter sido removido."); return; }
-  const owner = !!state.user && p.ownerUid === state.user.uid;
+  const owner = isMine(p);
   const c = state.contacts.get(id);
   let extra;
   if (!state.user) {
@@ -223,7 +227,10 @@ function resetPetForm() {
   const f = $("petForm"); f.reset(); delete f.dataset.editId;
   $("photoPreview").hidden = true; $("petPhoto").value = ""; delete $("petPhoto").dataset.compressed;
   $("formTitle").textContent = "Vamos conhecer seu pet?"; $("formEyebrow").textContent = "NOVO CADASTRO";
+  setAddressRequired(true);
 }
+// Endereço é obrigatório no cadastro novo; na edição de pets antigos (sem endereço) não trava o salvamento
+function setAddressRequired(on) { for (const k of ["street", "number", "houseColor", "nearbyReference"]) $("petForm").elements[k].required = on; }
 function requireMember(msg) {
   if (state.user && !isAdminUser() && (isMemberActive() || isPending())) return true;
   if (isAdminUser()) { toast("Use a área administrativa para gerenciar cadastros. Para cadastrar seu próprio pet, entre com uma conta de morador."); return false; }
@@ -246,9 +253,9 @@ function openPetForm() {
 }
 async function beginEditPet(petId) {
   const pet = state.pets.find(x => x.id === petId);
-  if (!pet || !state.user || pet.ownerUid !== state.user.uid) { toast("Este pet não está vinculado à sua conta. Peça à administração para fazer o vínculo."); return; }
+  if (!pet || !isMine(pet)) { toast("Este pet não está vinculado à sua conta. Peça à administração para fazer o vínculo."); return; }
   resetPetForm();
-  const f = $("petForm"); f.dataset.editId = pet.id;
+  const f = $("petForm"); f.dataset.editId = pet.id; setAddressRequired(false);
   for (const k of ["name", "type", "sex", "neutered", "breed", "size", "traits", "description"]) if (f.elements[k]) f.elements[k].value = pet[k] || "";
   const c = state.contacts.get(pet.id), gs = c?.guardians || [];
   ["owner", "owner2", "owner3"].forEach((k, i) => f.elements[k].value = gs[i]?.name || (i === 0 ? state.member?.name || "" : ""));
@@ -268,22 +275,22 @@ async function savePet(e) {
   const f = e.currentTarget;
   if (!f.reportValidity()) return;
   if (!requireMember("Entre na área dos moradores para cadastrar seu pet.")) return;
-  const photo = $("petPhoto").dataset.compressed;
-  if (!photo) return toast("Adicione uma foto do pet.");
+  const photo = $("petPhoto").dataset.compressed || "";
+  if (!photo && !f.dataset.editId) return toast("Adicione uma foto do pet.");
   const d = Object.fromEntries(new FormData(f));
   const btn = f.querySelector("[type=submit]"); btn.disabled = true;
   try {
     const editId = f.dataset.editId;
     const existing = editId ? state.pets.find(p => p.id === editId) : null;
-    if (editId && existing?.ownerUid !== state.user.uid) throw new Error("Este pet não está vinculado à sua conta.");
+    if (editId && !isMine(existing)) throw new Error("Este pet não está vinculado à sua conta.");
     const id = editId || doc(collection(db, "pets_public")).id;
-    const uid = state.user.uid;
-    const publicPet = { name: d.name.trim(), type: d.type, sex: d.sex || "", neutered: d.neutered || "", breed: d.breed.trim(), size: d.size, traits: d.traits.trim(), description: (d.description || "").trim(), photo, ownerUid: uid, createdAt: existing?.createdAt || serverTimestamp(), updatedAt: serverTimestamp() };
+    const owners = existing ? ownersOf(existing) : { ownerUid: state.user.uid, ownerUids: [] };
+    const publicPet = { name: d.name.trim(), type: d.type, sex: d.sex || "", neutered: d.neutered || "", breed: d.breed.trim(), size: d.size, traits: d.traits.trim(), description: (d.description || "").trim(), photo, ...owners, createdAt: existing?.createdAt || serverTimestamp(), updatedAt: serverTimestamp() };
     const guardians = [[d.owner, d.phone], [d.owner2, d.phone2], [d.owner3, d.phone3]].map(([n, ph]) => ({ name: (n || "").trim(), phone: (ph || "").trim() })).filter(g => g.name || g.phone);
     const batch = writeBatch(db);
     batch.set(doc(db, "pets_public", id), publicPet);
-    batch.set(doc(db, "pet_alert_contacts", id), { petId: id, petName: publicPet.name, guardians, allowAlerts: d.allowAlerts === "yes", ownerUid: uid });
-    batch.set(doc(db, "pet_private", id), { petId: id, ownerUid: uid, street: d.street.trim(), number: d.number.trim(), referenceUnit: d.referenceUnit.trim(), houseColor: d.houseColor.trim(), nearbyReference: d.nearbyReference.trim() });
+    batch.set(doc(db, "pet_alert_contacts", id), { petId: id, petName: publicPet.name, guardians, allowAlerts: d.allowAlerts === "yes", ...owners });
+    batch.set(doc(db, "pet_private", id), { petId: id, ...owners, street: d.street.trim(), number: d.number.trim(), referenceUnit: d.referenceUnit.trim(), houseColor: d.houseColor.trim(), nearbyReference: d.nearbyReference.trim() });
     await batch.commit();
     modal("formModal", false); resetPetForm();
     toast(editId ? "Cadastro atualizado!" : `${publicPet.name} foi cadastrado(a) e já aparece em Meus pets! 🐾`);
@@ -315,7 +322,7 @@ async function saveLost(e) {
   if (!pet) return toast("Selecione um dos seus pets.");
   const btn = f.querySelector("[type=submit]"); btn.disabled = true;
   try {
-    const a = { petId: pet.id, name: pet.name, photo: pet.photo || "", location: d.location.trim(), seenAt: d.seenAt, notes: (d.notes || "").trim(), ownerUid: state.user.uid, status: "active", createdAt: serverTimestamp() };
+    const a = { petId: pet.id, name: pet.name, photo: pet.photo || "", location: d.location.trim(), seenAt: d.seenAt, notes: (d.notes || "").trim(), ...ownersOf(pet), createdBy: state.user.uid, status: "active", createdAt: serverTimestamp() };
     await setDoc(doc(db, "lost_public", pet.id), a);
     f.reset(); f.hidden = true;
     $("lostShareText").textContent = lostMessage(a);
@@ -341,7 +348,7 @@ async function resolveLost(petId) {
 // ---------- avistamento de pet cadastrado ----------
 function openSighting(petId = "") {
   if (!requireApproved("Entre na comunidade para avisar o responsável. Se o animal não for cadastrado, use “Cadastrar animal encontrado”.")) return;
-  $("sightingPetSelect").innerHTML = '<option value="">Selecione o pet</option>' + state.pets.filter(p => p.ownerUid !== state.user.uid).map(p => `<option value="${esc(p.id)}">${esc(p.name)} · ${esc(p.type)}${alertFor(p.id) ? " · DESAPARECIDO" : ""}</option>`).join("");
+  $("sightingPetSelect").innerHTML = '<option value="">Selecione o pet</option>' + state.pets.filter(p => !isMine(p)).map(p => `<option value="${esc(p.id)}">${esc(p.name)} · ${esc(p.type)}${alertFor(p.id) ? " · DESAPARECIDO" : ""}</option>`).join("");
   $("sightingPetSelect").value = petId;
   const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   $("sightingForm").elements.seenAt.value = now.toISOString().slice(0, 16);
@@ -356,7 +363,7 @@ async function saveSighting(e) {
   if (!pet) return toast("Selecione o pet que você viu.");
   const btn = f.querySelector("[type=submit]"); btn.disabled = true;
   try {
-    await addDoc(collection(db, "sightings"), { petId: pet.id, petName: pet.name, petOwnerUid: pet.ownerUid || "", location: d.location.trim(), seenAt: d.seenAt, notes: (d.notes || "").trim(), reporterUid: state.user.uid, reporterName: state.member?.name || "", createdAt: serverTimestamp() });
+    await addDoc(collection(db, "sightings"), { petId: pet.id, petName: pet.name, petOwnerUid: pet.ownerUid || "", petOwnerUids: [pet.ownerUid, ...(pet.ownerUids || [])].filter(Boolean), location: d.location.trim(), seenAt: d.seenAt, notes: (d.notes || "").trim(), reporterUid: state.user.uid, reporterName: state.member?.name || "", createdAt: serverTimestamp() });
     const c = state.contacts.get(pet.id);
     const msg = `Olá! Aqui é ${state.member?.name || "um(a) morador(a)"}, do Pets Bela Vista. 🐾\nVi o(a) *${pet.name}* na rua, próximo a: ${d.location.trim()}, em ${fmtDateTime(d.seenAt)}.${d.notes ? `\n${d.notes.trim()}` : ""}\nEstou avisando para você saber onde ele(a) foi visto(a).`;
     const gs = c?.allowAlerts ? (c.guardians || []).filter(g => g.phone) : [];
@@ -510,9 +517,32 @@ document.addEventListener("click", async e => {
 
 document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.classList?.contains("pet-card-click")) { e.preventDefault(); openPetDetails(e.target.dataset.petDetails); } });
 
-// PWA
-$("installBtn").addEventListener("click", async () => { if (!state.deferredPrompt) return; state.deferredPrompt.prompt(); await state.deferredPrompt.userChoice; state.deferredPrompt = null; $("installBtn").hidden = true; });
-window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); state.deferredPrompt = e; $("installBtn").hidden = false; });
+// PWA: botão "Instalar app" sempre visível (exceto quando já está instalado)
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const platform = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ? "ios" : /android/i.test(navigator.userAgent) ? "android" : "desktop";
+function showInstallTab(t) {
+  document.querySelectorAll("[data-install-tab]").forEach(b => b.classList.toggle("active", b.dataset.installTab === t));
+  document.querySelectorAll("[data-install-panel]").forEach(p => p.hidden = p.dataset.installPanel !== t);
+}
+async function install() {
+  if (state.deferredPrompt) {
+    state.deferredPrompt.prompt();
+    const { outcome } = await state.deferredPrompt.userChoice;
+    state.deferredPrompt = null;
+    if (outcome === "accepted") { toast("Aplicativo instalado! Procure o ícone na tela inicial. 🐾"); refreshInstallUi(); }
+    return;
+  }
+  showInstallTab(platform());
+  modal("installModal", true);
+}
+function refreshInstallUi() { const hide = isStandalone(); $("installBtn").hidden = hide; $("installCard").hidden = hide; }
+$("installBtn").addEventListener("click", install);
+$("installCardBtn").addEventListener("click", install);
+$("closeInstall").onclick = () => modal("installModal", false);
+$("installModal").addEventListener("click", e => { if (e.target.id === "installModal") modal("installModal", false); const t = e.target.closest("[data-install-tab]"); if (t) showInstallTab(t.dataset.installTab); });
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); state.deferredPrompt = e; refreshInstallUi(); });
+window.addEventListener("appinstalled", () => { state.deferredPrompt = null; refreshInstallUi(); });
+refreshInstallUi();
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 
 onAuthStateChanged(auth, user => { if (state.signingUp) return; onUser(user); });

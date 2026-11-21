@@ -1,8 +1,8 @@
 // Pets Bela Vista — service worker
 // Estratégia "rede primeiro": sempre busca a versão mais nova do site e usa o cache só quando estiver offline.
 // (A versão anterior usava "cache primeiro", o que fazia o celular continuar mostrando arquivos antigos após cada atualização.)
-const CACHE = 'pets-bela-vista-v3';
-const ASSETS = ['/', '/index.html', '/admin.html', '/styles.css', '/app.js', '/admin.js', '/firebase-config.js', '/manifest.webmanifest', '/icon.svg', '/hero-pets.png'];
+const CACHE = 'pets-bela-vista-v4';
+const ASSETS = ['/', '/index.html', '/admin.html', '/styles.css', '/app.js', '/admin.js', '/firebase-config.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/hero-pets.png'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();

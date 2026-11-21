@@ -18,6 +18,13 @@ const byDate = (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 
 const fmtTs = t => t?.toDate?.().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) || "—";
 const fmtDT = v => { if (!v) return ""; const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }); };
 const member = uid => L.members.find(m => m.id === uid);
+const canon = v => { let d = String(v || "").replace(/\D/g, ""); if ((d.length === 12 || d.length === 13) && d.startsWith("55")) d = d.slice(2); return d; };
+const ownersList = p => [p.ownerUid, ...(p.ownerUids || [])].filter(Boolean);
+// Pets em que o WhatsApp do morador aparece como responsável, mas a conta ainda não está vinculada
+function phoneMatches(m) {
+  const ph = canon(m.phone); if (ph.length < 10) return [];
+  return L.pets.filter(p => !ownersList(p).includes(m.id) && (contactOf(p.id)?.guardians || []).some(g => canon(g.phone) === ph));
+}
 const memberName = uid => uid ? (member(uid)?.name || (uid === ADMIN_UID ? "Administração" : "conta sem cadastro")) : "não vinculado";
 const memberStatus = m => m.active === true ? ["Aprovado", "ok"] : m.status === "blocked" ? ["Bloqueado", "bad"] : m.status === "rejected" ? ["Recusado", "bad"] : m.status === "pending" ? ["Aguardando aprovação", ""] : ["Inativo", ""];
 const memberActions = m => m.active === true ? btn("reject", "Bloquear", { act: "block", id: m.id }) : m.status === "pending" ? btn("approve", "Aprovar", { act: "activate", id: m.id }) + btn("reject", "Recusar", { act: "reject-member", id: m.id }) : btn("approve", m.status === "rejected" ? "Aprovar" : "Reativar", { act: "activate", id: m.id });
@@ -53,8 +60,10 @@ function render() {
   // Pendências
   const published = new Set(L.pets.map(p => p.id));
   const pendingMembers = L.members.filter(m => m.active !== true && m.status === "pending");
+  const approvedMatches = L.members.filter(m => m.active === true).flatMap(m => phoneMatches(m).map(p => ({ m, p })));
   const pend = [
-    ...pendingMembers.map(m => row("", `Novo morador · ${esc(m.name || "")}<span class="tag">aguardando aprovação</span>`, `WhatsApp: <b>${esc(m.phone || "não informado")}</b> · cadastro em ${fmtTs(m.createdAt)}<br>Confira se este número está no grupo de WhatsApp do bairro antes de aprovar.`, memberActions(m))),
+    ...approvedMatches.map(({ m, p }) => row(p.photo, `Vincular ${esc(p.name)} a ${esc(m.name || "morador")}<span class="tag">WhatsApp confere</span>`, `${esc(m.name)} (${esc(m.phone)}) está cadastrado(a) como responsável de ${esc(p.name)}, mas a conta dele(a) ainda não está vinculada ao pet.<br>Responsável atual: ${esc(ownersList(p).map(memberName).join(", ") || "nenhum")}`, btn("approve", "Vincular como responsável", { act: "link-owner", id: p.id, uid: m.id }))),
+    ...pendingMembers.map(m => row("", `Novo morador · ${esc(m.name || "")}<span class="tag">aguardando aprovação</span>`, `WhatsApp: <b>${esc(m.phone || "não informado")}</b> · cadastro em ${fmtTs(m.createdAt)}<br>Confira se este número está no grupo de WhatsApp do bairro antes de aprovar.${phoneMatches(m).length ? `<br>Ao aprovar, será vinculado(a) a: <b>${esc(phoneMatches(m).map(p => p.name).join(", "))}</b> (WhatsApp cadastrado como responsável).` : ""}`, memberActions(m))),
     ...pendingFound.map(s => row(s.photo, `Animal encontrado · ${esc(s.type || "")}`, `${esc(s.appearance || "")} ${esc(s.traits || "")}<br>📍 ${esc(s.location || "")} · ${esc(s.seenDate || "")}<br>Enviado por ${esc(s.reporter || "")} · ${esc(s.phone || "")}`, btn("approve", "Publicar", { act: "approve-found", id: s.id }) + btn("reject", "Excluir", { act: "del", col: "foundSubs", id: s.id }))),
     ...pendingClaims.map(s => { const f = L.found.find(x => x.id === s.foundPetId); return row(f?.photo, `Reivindicação · ${esc(s.owner || "")}`, `WhatsApp: ${esc(s.phone || "")}<br>Animal: ${esc(f ? `${f.type} visto em ${f.location}` : s.foundPetId || "não encontrado")}<br>Comprovação: ${esc(s.proof || "")}`, btn("approve", "Confirmar devolução", { act: "approve-claim", id: s.id }) + btn("reject", "Recusar", { act: "reject-claim", id: s.id })); }),
     ...L.petSubs.map(s => row(s.photo, `Cadastro antigo · ${esc(s.name || "Pet")}${published.has(s.id) ? '<span class="tag ok">já publicado</span>' : '<span class="tag">pendente</span>'}`, `${esc(s.owner || "")} · ${esc(s.phone || "")} · morador: ${esc(memberName(s.ownerUid))}<br>${esc([s.street, s.number, s.referenceUnit, s.houseColor, s.nearbyReference].filter(Boolean).join(" · "))}`, (published.has(s.id) ? "" : btn("approve", "Publicar pet", { act: "approve-petsub", id: s.id })) + btn("reject", published.has(s.id) ? "Remover duplicata" : "Excluir", { act: "del", col: "petSubs", id: s.id }))),
@@ -84,9 +93,9 @@ function renderPets() {
   const v = L.pets.filter(p => [p.name, p.type, p.breed, memberName(p.ownerUid)].join(" ").toLocaleLowerCase("pt-BR").includes(q));
   $("adminPetsCount").textContent = L.pets.length;
   $("adminPetsList").innerHTML = v.map(p => {
-    const c = contactOf(p.id), pr = privOf(p.id), linked = p.ownerUid && member(p.ownerUid);
+    const c = contactOf(p.id), pr = privOf(p.id), linked = ownersList(p).some(u => member(u));
     return row(p.photo, `${esc(p.name)}${!linked ? '<span class="tag bad">sem morador vinculado</span>' : ""}${counts[dupKey(p)] > 1 ? '<span class="tag">possível duplicado</span>' : ""}${L.lost.some(a => (a.petId || a.id) === p.id && a.status === "active") ? '<span class="tag bad">desaparecido</span>' : ""}`,
-      `${esc([p.type, p.sex, p.breed, p.size, p.neutered ? `castrado(a): ${p.neutered}` : ""].filter(Boolean).join(" · "))}<br>Morador: ${esc(memberName(p.ownerUid))}${c?.guardians?.length ? ` · contatos: ${esc(c.guardians.map(g => `${g.name} ${g.phone}`).join(", "))}${c.allowAlerts ? " (visíveis a moradores)" : " (privados)"}` : ""}<br>${pr ? `🏠 ${esc([pr.street, pr.number, pr.referenceUnit, pr.houseColor, pr.nearbyReference].filter(Boolean).join(" · "))}` : "Sem endereço cadastrado"}`,
+      `${esc([p.type, p.sex, p.breed, p.size, p.neutered ? `castrado(a): ${p.neutered}` : ""].filter(Boolean).join(" · "))}<br>Morador(es): ${esc(ownersList(p).map(memberName).join(", ") || "não vinculado")}${c?.guardians?.length ? ` · contatos: ${esc(c.guardians.map(g => `${g.name} ${g.phone}`).join(", "))}${c.allowAlerts ? " (visíveis a moradores)" : " (privados)"}` : ""}<br>${pr ? `🏠 ${esc([pr.street, pr.number, pr.referenceUnit, pr.houseColor, pr.nearbyReference].filter(Boolean).join(" · "))}` : "Sem endereço cadastrado"}`,
       btn("approve", "Abrir / editar", { act: "edit-pet", id: p.id }) + btn("reject", "Excluir", { act: "delete-pet", id: p.id }));
   }).join("") || '<p class="admin-note">Nenhum pet encontrado.</p>';
 }
@@ -95,7 +104,7 @@ function renderMembers() {
   const v = L.members.filter(m => [m.name, m.phone].join(" ").toLocaleLowerCase("pt-BR").includes(q));
   $("membersCount").textContent = L.members.length;
   $("membersList").innerHTML = v.map(m => {
-    const [st, cls] = memberStatus(m), n = L.pets.filter(p => p.ownerUid === m.id).length;
+    const [st, cls] = memberStatus(m), n = L.pets.filter(p => ownersList(p).includes(m.id)).length;
     return `<div class="pending-item member-row" data-member-open="${esc(m.id)}" role="button" tabindex="0"><span class="pending-placeholder">♙</span><span class="pending-details"><b>${esc(m.name || "Morador")} <span class="tag ${cls}">${st}</span></b><small>WhatsApp: ${esc(m.phone || "não informado")} · ${n} pet(s)<br>Cadastro: ${fmtTs(m.createdAt)}<span class="member-row-hint"> · Ver ficha →</span></small></span><span class="pending-actions">${memberActions(m)}</span></div>`;
   }).join("") || '<p class="admin-note">Nenhum morador encontrado.</p>';
 }
@@ -103,7 +112,7 @@ function renderMembers() {
 // ---------- ficha do morador ----------
 function openMemberDetails(id) {
   const m = member(id); if (!m) return;
-  const linked = L.pets.filter(p => p.ownerUid === id), [st] = memberStatus(m);
+  const linked = L.pets.filter(p => ownersList(p).includes(id)), [st] = memberStatus(m);
   $("memberDetailsTitle").textContent = m.name || "Morador";
   $("memberDetailsSubtitle").textContent = `WhatsApp: ${m.phone || "não informado"} · ${st}`;
   $("memberDetailsBody").innerHTML = `<div class="resident-info-grid">
@@ -126,6 +135,7 @@ function openPetEdit(id) {
   const opts = [...L.members].sort((a, b) => (a.name || "").localeCompare(b.name || "", "pt-BR"));
   $("petEditOwner").innerHTML = `<option value="">— não vinculado —</option>` + opts.map(m => `<option value="${esc(m.id)}">${esc(m.name || "Morador")} · ${esc(m.phone || "")}</option>`).join("") + (p.ownerUid && !member(p.ownerUid) ? `<option value="${esc(p.ownerUid)}">Conta sem cadastro (${esc(p.ownerUid)})</option>` : "");
   f.elements.ownerUid.value = p.ownerUid || "";
+  $("petEditCoOwners").innerHTML = opts.map(m => `<label class="consent co-owner"><input type="checkbox" name="coOwner" value="${esc(m.id)}" ${(p.ownerUids || []).includes(m.id) ? "checked" : ""}> ${esc(m.name || "Morador")} · ${esc(m.phone || "")}</label>`).join("") || '<p class="admin-note">Nenhum morador cadastrado.</p>';
   const gs = c.guardians || [];
   [0, 1, 2].forEach(i => { f.elements[`g${i}n`].value = gs[i]?.name || ""; f.elements[`g${i}p`].value = gs[i]?.phone || ""; });
   f.elements.allowAlerts.checked = c.allowAlerts === true;
@@ -138,16 +148,18 @@ async function savePetEdit(e) {
   e.preventDefault();
   const f = e.currentTarget, id = f.dataset.id, p = L.pets.find(x => x.id === id); if (!p) return;
   const d = Object.fromEntries(new FormData(f)), owner = d.ownerUid || "";
+  const coOwners = [...new Set(new FormData(f).getAll("coOwner"))].filter(u => u && u !== owner);
+  const owners = { ownerUid: owner, ownerUids: coOwners };
   const guardians = [0, 1, 2].map(i => ({ name: d[`g${i}n`].trim(), phone: d[`g${i}p`].trim() })).filter(g => g.name || g.phone);
   try {
     const b = writeBatch(db);
-    b.set(doc(db, "pets_public", id), { name: d.name.trim(), type: d.type, sex: d.sex || "", neutered: d.neutered || "", breed: d.breed.trim(), size: d.size, traits: d.traits.trim(), description: d.description.trim(), photo: p.photo || "", ownerUid: owner, createdAt: p.createdAt || serverTimestamp(), updatedAt: serverTimestamp() });
-    b.set(doc(db, "pet_alert_contacts", id), { petId: id, petName: d.name.trim(), guardians, allowAlerts: d.allowAlerts === "yes", ownerUid: owner });
-    b.set(doc(db, "pet_private", id), { petId: id, ownerUid: owner, ...Object.fromEntries(PRIVATE_KEYS.map(k => [k, (d[k] || "").trim()])) });
-    for (const a of L.lost.filter(a => (a.petId || a.id) === id)) b.update(doc(db, "lost_public", a.id), { ownerUid: owner, name: d.name.trim() });
+    b.set(doc(db, "pets_public", id), { name: d.name.trim(), type: d.type, sex: d.sex || "", neutered: d.neutered || "", breed: d.breed.trim(), size: d.size, traits: d.traits.trim(), description: d.description.trim(), photo: p.photo || "", ...owners, createdAt: p.createdAt || serverTimestamp(), updatedAt: serverTimestamp() });
+    b.set(doc(db, "pet_alert_contacts", id), { petId: id, petName: d.name.trim(), guardians, allowAlerts: d.allowAlerts === "yes", ...owners });
+    b.set(doc(db, "pet_private", id), { petId: id, ...owners, ...Object.fromEntries(PRIVATE_KEYS.map(k => [k, (d[k] || "").trim()])) });
+    for (const a of L.lost.filter(a => (a.petId || a.id) === id)) b.update(doc(db, "lost_public", a.id), { ...owners, name: d.name.trim() });
     await b.commit();
     $("petEditModal").hidden = true;
-    toast(owner !== (p.ownerUid || "") ? `Pet salvo e vinculado a ${memberName(owner)}.` : "Pet atualizado.");
+    toast(`Pet salvo. Responsáveis: ${[owner, ...coOwners].filter(Boolean).map(memberName).join(", ") || "nenhum"}.`);
     await load();
   } catch (err) { console.error(err); toast(`Falha ao salvar (${err.code || "erro"}).`); }
 }
@@ -195,15 +207,31 @@ async function migratePrivate() {
   } catch (err) { console.error(err); toast(`Falha na migração (${err.code || "erro"}).`); }
 }
 
+// Vincula um morador ao pet: vira dono principal se o pet não tiver, senão co-responsável
+async function linkOwner(petId, uid) {
+  const p = L.pets.find(x => x.id === petId); if (!p || ownersList(p).includes(uid)) return;
+  const owners = p.ownerUid ? { ownerUid: p.ownerUid, ownerUids: [...new Set([...(p.ownerUids || []), uid])] } : { ownerUid: uid, ownerUids: p.ownerUids || [] };
+  const b = writeBatch(db);
+  b.update(doc(db, "pets_public", petId), owners);
+  b.set(doc(db, "pet_alert_contacts", petId), { petId, petName: p.name, ...owners }, { merge: true });
+  b.set(doc(db, "pet_private", petId), { petId, ...owners }, { merge: true });
+  L.lost.filter(a => (a.petId || a.id) === petId).forEach(a => b.update(doc(db, "lost_public", a.id), owners));
+  await b.commit();
+  Object.assign(p, owners);
+}
+
 // ---------- ações ----------
 async function act(t) {
   const { act: a, id, col } = t.dataset;
   try {
     if (a === "edit-pet") return openPetEdit(id);
+    if (a === "link-owner") { await linkOwner(id, t.dataset.uid); toast(`${L.pets.find(p => p.id === id)?.name} vinculado(a) a ${memberName(t.dataset.uid)}.`); return load(); }
     if (a === "delete-pet") return deletePet(id);
     if (a === "block" || a === "activate") {
       await updateDoc(doc(db, "members", id), a === "block" ? { active: false, status: "blocked" } : { active: true, status: "approved", approvedAt: serverTimestamp() });
-      toast(a === "block" ? "Acesso bloqueado." : "Morador aprovado: as informações adicionais foram liberadas.");
+      let linkedNames = [];
+      if (a === "activate") { const m = member(id); for (const p of phoneMatches(m)) { await linkOwner(p.id, id); linkedNames.push(p.name); } }
+      toast(a === "block" ? "Acesso bloqueado." : `Morador aprovado: informações liberadas.${linkedNames.length ? ` Vinculado(a) a: ${linkedNames.join(", ")}.` : ""}`);
       $("memberDetailsModal").hidden = true;
     } else if (a === "reject-member") {
       if (!confirm("Recusar este cadastro? A pessoa não conseguirá entrar.")) return;
@@ -228,9 +256,9 @@ async function act(t) {
       const guardians = [[s.owner, s.phone], [s.owner2, s.phone2], [s.owner3, s.phone3]].map(([n, p]) => ({ name: n || "", phone: p || "" })).filter(g => g.name || g.phone);
       const owner = s.ownerUid || "";
       const b = writeBatch(db);
-      b.set(doc(db, "pets_public", id), { name: s.name || "Pet", type: ["Cachorro", "Gato", "Outro"].includes(s.type) ? s.type : "Outro", breed: s.breed || "", size: s.size || "", traits: s.traits || "", description: s.description || "", photo: s.photo || "", ownerUid: owner, createdAt: s.createdAt || serverTimestamp(), updatedAt: serverTimestamp() });
-      b.set(doc(db, "pet_alert_contacts", id), { petId: id, petName: s.name || "Pet", guardians, allowAlerts: s.allowAlerts === true, ownerUid: owner });
-      b.set(doc(db, "pet_private", id), { petId: id, ownerUid: owner, ...Object.fromEntries(PRIVATE_KEYS.map(k => [k, s[k] || ""])) });
+      b.set(doc(db, "pets_public", id), { ownerUids: [], name: s.name || "Pet", type: ["Cachorro", "Gato", "Outro"].includes(s.type) ? s.type : "Outro", breed: s.breed || "", size: s.size || "", traits: s.traits || "", description: s.description || "", photo: s.photo || "", ownerUid: owner, createdAt: s.createdAt || serverTimestamp(), updatedAt: serverTimestamp() });
+      b.set(doc(db, "pet_alert_contacts", id), { petId: id, petName: s.name || "Pet", guardians, allowAlerts: s.allowAlerts === true, ownerUid: owner, ownerUids: [] });
+      b.set(doc(db, "pet_private", id), { petId: id, ownerUid: owner, ownerUids: [], ...Object.fromEntries(PRIVATE_KEYS.map(k => [k, s[k] || ""])) });
       b.delete(doc(db, "pet_submissions", id));
       await b.commit();
       toast(owner ? "Pet publicado." : "Pet publicado. Ele está sem morador vinculado: abra o pet para vincular.");
