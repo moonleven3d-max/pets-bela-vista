@@ -101,7 +101,7 @@ function petCard(p, owner = false) {
   return `<article class="pet-card pet-card-click" data-pet-details="${esc(p.id)}" tabindex="0" role="button" aria-label="Ver detalhes de ${esc(p.name)}">${p.photo ? `<img class="pet-photo" src="${esc(p.photo)}" alt="Foto de ${esc(p.name)}" loading="lazy">` : `<div class="pet-photo-placeholder">🐾</div>`}
   <div class="pet-info"><div class="pet-title"><h3>${esc(p.name)}</h3><span class="species${a ? " species-lost" : ""}">${a ? "Desaparecido" : esc(p.type)}</span></div>
   <p>${esc([p.sex, p.breed, p.traits].filter(Boolean).join(" · "))}</p>
-  <button class="details-link" data-pet-details="${esc(p.id)}">Ver mais detalhes <span>→</span></button>
+  <div class="card-actions"><button class="details-link" data-pet-details="${esc(p.id)}">Ver mais detalhes <span>→</span></button>${!owner && !isMine(p) ? `<button class="small-btn sighting-btn" data-sighting-for="${esc(p.id)}">👀 Vi este pet na rua</button>` : ""}</div>
   ${owner ? `<div class="owner-actions"><button class="small-btn approve" data-pet-edit="${esc(p.id)}">Editar cadastro</button>${a ? `<button class="small-btn approve" data-resolve-lost="${esc(p.id)}">Meu pet foi encontrado</button>` : `<button class="small-btn reject" data-lost-for="${esc(p.id)}">Meu pet fugiu</button>`}</div>` : ""}
   </div></article>`;
 }
