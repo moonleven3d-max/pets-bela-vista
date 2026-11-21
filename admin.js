@@ -9,7 +9,7 @@ let current = null;
 const L = { members: [], pets: [], contacts: [], priv: [], lost: [], found: [], foundSubs: [], claims: [], petSubs: [], lostSubs: [], sightings: [] };
 const COLS = { members: "members", pets: "pets_public", contacts: "pet_alert_contacts", priv: "pet_private", lost: "lost_public", found: "found_public", foundSubs: "found_submissions", claims: "claim_submissions", petSubs: "pet_submissions", lostSubs: "lost_submissions", sightings: "sightings" };
 const PRIVATE_KEYS = ["street", "number", "referenceUnit", "houseColor", "nearbyReference"];
-const PUBLIC_KEYS = ["name", "type", "sex", "neutered", "breed", "size", "traits", "description", "photo", "ownerUid", "createdAt", "updatedAt"];
+const PUBLIC_KEYS = ["name", "type", "sex", "neutered", "breed", "size", "traits", "description", "photo", "ownerUid", "ownerUids", "createdAt", "updatedAt"];
 
 function esc(v = "") { return String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function toast(m) { $("toast").textContent = m; $("toast").classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(() => $("toast").classList.remove("show"), 5000); }
