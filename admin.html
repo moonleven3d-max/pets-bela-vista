@@ -20,6 +20,15 @@
     <div id="adminContent" hidden><div class="admin-head"><h3>Solicitações para analisar <span class="count-pill" id="pendingCount">0</span></h3><button class="text-btn" id="logoutBtn">Sair</button></div><div id="pendingList" class="pending-list"></div><section class="admin-data-section"><div class="admin-head"><h3>Pets cadastrados <span class="count-pill" id="adminPetsCount">0</span></h3></div><div id="adminPetsList" class="pending-list"></div></section><section class="admin-data-section"><div class="admin-head"><h3>Alertas de desaparecimento <span class="count-pill" id="adminLostCount">0</span></h3></div><div id="adminLostList" class="pending-list"></div></section><section class="admin-data-section"><div class="admin-head"><h3>Animais encontrados <span class="count-pill" id="adminFoundCount">0</span></h3></div><div id="adminFoundList" class="pending-list"></div></section><section class="members-admin"><div class="admin-head"><h3>Moradores cadastrados <span class="count-pill" id="membersCount">0</span></h3></div><div id="membersList" class="pending-list"></div></section><div class="admin-tools"><button class="text-btn" id="exportBtn">Exportar cadastros (JSON)</button></div></div>
   </section>
 </main>
+<div class="modal-backdrop" id="memberDetailsModal" hidden>
+  <section class="modal resident-details-modal" role="dialog" aria-modal="true" aria-labelledby="memberDetailsTitle">
+    <div class="modal-head">
+      <div><span class="eyebrow">CADASTRO DO MORADOR</span><h2 id="memberDetailsTitle">Morador</h2><p id="memberDetailsSubtitle">Informações da conta</p></div>
+      <button class="close-btn" id="closeMemberDetails" aria-label="Fechar">×</button>
+    </div>
+    <div id="memberDetailsBody"></div>
+  </section>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="admin.js"></script>
 </body></html>
