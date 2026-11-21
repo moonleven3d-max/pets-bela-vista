@@ -135,7 +135,7 @@ function openPetEdit(id) {
   const opts = [...L.members].sort((a, b) => (a.name || "").localeCompare(b.name || "", "pt-BR"));
   $("petEditOwner").innerHTML = `<option value="">— não vinculado —</option>` + opts.map(m => `<option value="${esc(m.id)}">${esc(m.name || "Morador")} · ${esc(m.phone || "")}</option>`).join("") + (p.ownerUid && !member(p.ownerUid) ? `<option value="${esc(p.ownerUid)}">Conta sem cadastro (${esc(p.ownerUid)})</option>` : "");
   f.elements.ownerUid.value = p.ownerUid || "";
-  $("petEditCoOwners").innerHTML = opts.map(m => `<label class="consent co-owner"><input type="checkbox" name="coOwner" value="${esc(m.id)}" ${(p.ownerUids || []).includes(m.id) ? "checked" : ""}> ${esc(m.name || "Morador")} · ${esc(m.phone || "")}</label>`).join("") || '<p class="admin-note">Nenhum morador cadastrado.</p>';
+  $("petEditCoOwners").innerHTML = opts.map(m => `<label class="consent co-owner"><input type="checkbox" name="coOwner" value="${esc(m.id)}" ${(p.ownerUids || []).includes(m.id) ? "checked" : ""}> <span>${esc(m.name || "Morador")} · ${esc(m.phone || "")}</span></label>`).join("") || '<p class="admin-note">Nenhum morador cadastrado.</p>';
   const gs = c.guardians || [];
   [0, 1, 2].forEach(i => { f.elements[`g${i}n`].value = gs[i]?.name || ""; f.elements[`g${i}p`].value = gs[i]?.phone || ""; });
   f.elements.allowAlerts.checked = c.allowAlerts === true;
