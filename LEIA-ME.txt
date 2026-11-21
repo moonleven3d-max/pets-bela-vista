@@ -1,33 +1,24 @@
-PET DO BAIRRO — VERSÃO FIREBASE (primeira integração)
-
-Projeto Firebase: pets-bela-vista
-UID administrativo autorizado: 9DorSyAFJEdAkrtzjMxjLDst0sa2
+PETS BELA VISTA — VERSÃO COM ANIMAIS ENCONTRADOS E REIVINDICAÇÃO
 
 FUNCIONALIDADES
-- Consulta pública de pets aprovados (pets_public).
-- Cadastro público enviado para pet_submissions com status pending.
-- Nome, telefone e endereço do tutor ficam somente na coleção privada pet_submissions.
-- Login administrativo via Firebase Authentication (e-mail/senha).
-- Somente o UID configurado pode consultar pendências, aprovar ou rejeitar.
-- A aprovação publica somente dados do animal; não publica telefone/endereço/nome do tutor.
+- Pets do bairro: cadastro de animais com tutor, aprovação administrativa e publicação dos dados públicos do animal.
+- Encontrados na rua: moradores podem enviar foto, características, local e data em que viram o animal. A publicação depende de aprovação. Não se presume abandono.
+- Reivindicação: alguém que reconheça o animal pode enviar dados e explicações para comprovar o vínculo. A administração analisa; se aprovada, o animal é marcado como reunido e sai da lista pública ativa.
+- Contatos e informações de quem enviou/reivindicou são privados e visíveis somente à administração.
+- Área administrativa: /admin.
 
-ANTES DE PUBLICAR
-1. Confirme no Firebase Authentication que o usuário administrador foi criado com o e-mail correto.
-2. Confirme que o UID desse usuário é exatamente o UID configurado neste projeto.
-3. No Firestore > Regras, publique o conteúdo de firestore.rules (ou use Firebase CLI).
-4. Teste cadastro público, consulta pública e aprovação com a conta administradora.
-5. Não compartilhe dados reais até concluir os testes e publicar regras.
+IMPORTANTE — PUBLICAR REGRAS FIRESTORE
+As novas funções dependem das regras atualizadas em firestore.rules. No Firebase Console > Firestore Database > Regras, substitua o conteúdo pelas regras deste arquivo e clique em Publicar. Sem isso, novos cadastros e carregamento das novas coleções podem falhar.
+
+COLEÇÕES
+- pets_public (pública): dados aprovados dos pets com tutor.
+- pet_submissions (privada): cadastros de pets aguardando aprovação.
+- found_public (pública): animais encontrados aprovados e ativos.
+- found_submissions (privada): envios de animais encontrados aguardando aprovação.
+- claim_submissions (privada): reivindicações aguardando análise.
 
 FOTOS
-As fotos são reduzidas no navegador e armazenadas como JPEG Data URL dentro do documento Firestore para evitar depender do Cloud Storage nesta primeira prova de conceito. Isso consome a cota do Firestore e não é indicado para grande volume; migrar para armazenamento próprio é recomendável antes de crescer.
+As fotos são comprimidas no navegador e guardadas como Data URL no Firestore. É adequado apenas para protótipo/baixo volume; antes de ampliar o uso, migrar imagens para Cloud Storage.
 
-PUBLICAÇÃO PELO TERMINAL
-- Instale Node.js LTS e Firebase CLI: npm install -g firebase-tools
-- Na pasta do projeto: firebase login
-- Depois: firebase use pets-bela-vista
-- Publicar regras: firebase deploy --only firestore:rules
-- Publicar site: firebase deploy --only hosting
-- Ou ambos: firebase deploy
-
-SEGURANÇA
-A apiKey do Firebase Web é identificador público, não senha. A segurança depende das regras Firestore e da autenticação. Nunca coloque credenciais privadas neste projeto.
+ADMIN
+Apenas o UID administrativo configurado no firebase-config.js e nas regras pode acessar os registros privados e aprovar/rejeitar. Nunca compartilhe senhas ou credenciais privadas.

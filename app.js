@@ -1,56 +1,24 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-let pets = [], deferredPrompt = null;
-const $ = id => document.getElementById(id);
-function escapeHTML(v = "") { return String(v).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-function toast(msg) { $("toast").textContent = msg; $("toast").classList.add("show"); setTimeout(() => $("toast").classList.remove("show"), 3500); }
-
-function renderPets() {
-  const q = $("searchInput").value.trim().toLocaleLowerCase("pt-BR"), type = $("typeFilter").value;
-  const visible = pets.filter(p => (type === "todos" || p.type === type) && [p.name,p.breed,p.traits,p.type].join(" ").toLocaleLowerCase("pt-BR").includes(q));
-  $("approvedCount").textContent = pets.length;
-  $("petGrid").innerHTML = visible.map(p => `<article class="pet-card">${p.photo ? `<img class="pet-photo" src="${p.photo}" alt="Foto de ${escapeHTML(p.name)}">` : `<div class="pet-photo-placeholder">${p.type === "Gato" ? "🐱" : "🐶"}</div>`}<div class="pet-info"><div class="pet-title"><h3>${escapeHTML(p.name)}</h3><span class="species">${escapeHTML(p.type)}</span></div><p>${escapeHTML([p.breed,p.size,p.traits].filter(Boolean).join(" · "))}</p></div></article>`).join("");
-  $("emptyState").classList.toggle("show", visible.length === 0); $("petGrid").style.display = visible.length ? "grid" : "none";
-}
-async function loadPublicPets() {
-  try { const snap = await getDocs(collection(db,"pets_public")); pets = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)); renderPets(); }
-  catch(e) { console.error(e); toast("Não foi possível carregar os pets. Confira as regras do Firestore."); }
-}
-function openForm(){ $("formModal").hidden=false; document.body.style.overflow="hidden"; }
-function closeForm(){ $("formModal").hidden=true; document.body.style.overflow=""; $("petForm").reset(); $("photoPreview").hidden=true; $("photoPreview").src=""; delete $("petPhoto").dataset.compressed; }
-["openForm","emptyAdd","joinBtn"].forEach(id=>$(id).addEventListener("click",openForm));
-$("closeForm").addEventListener("click",closeForm);
-$("formModal").addEventListener("click",e=>{if(e.target===$("formModal"))closeForm();});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("formModal").hidden)closeForm();});
-$("searchInput").addEventListener("input",renderPets); $("typeFilter").addEventListener("change",renderPets);
-
-async function compressImage(file){
-  if(!file.type.startsWith("image/")) throw new Error("Escolha um arquivo de imagem.");
-  const bitmap=await createImageBitmap(file), max=640, scale=Math.min(1,max/Math.max(bitmap.width,bitmap.height));
-  const canvas=document.createElement("canvas"); canvas.width=Math.round(bitmap.width*scale); canvas.height=Math.round(bitmap.height*scale);
-  canvas.getContext("2d").drawImage(bitmap,0,0,canvas.width,canvas.height);
-  return canvas.toDataURL("image/jpeg",0.68);
-}
-$("petPhoto").addEventListener("change",async e=>{
-  const file=e.target.files[0]; if(!file)return;
-  try{const data=await compressImage(file);$("photoPreview").src=data;$("photoPreview").hidden=false;$("petPhoto").dataset.compressed=data;}
-  catch(err){toast(err.message||"Não foi possível processar a foto.");e.target.value="";}
-});
-$("petForm").addEventListener("submit",async e=>{
-  e.preventDefault(); const form=e.currentTarget; if(!form.reportValidity())return;
-  const photo=$("petPhoto").dataset.compressed; if(!photo){toast("Adicione uma foto do pet.");return;}
-  const d=Object.fromEntries(new FormData(form).entries());
-  const submission={name:d.name.trim(),type:d.type,breed:d.breed.trim(),size:d.size,traits:d.traits.trim(),owner:d.owner.trim(),phone:d.phone.trim(),street:d.street.trim(),number:d.number.trim(),photo,status:"pending",createdAt:serverTimestamp()};
-  const btn=form.querySelector('button[type="submit"]'); btn.disabled=true; btn.textContent="Enviando...";
-  try{await addDoc(collection(db,"pet_submissions"),submission);closeForm();toast("Cadastro enviado! Ele aparecerá após a aprovação.");}
-  catch(err){console.error(err);toast("Não foi possível enviar. Confira a configuração do Firestore.");}
-  finally{btn.disabled=false;btn.innerHTML='Enviar para aprovação <span>→</span>';}
-});
-$("installBtn").addEventListener("click",async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$("installBtn").hidden=true;});
-window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e;$("installBtn").hidden=false;});
-if("serviceWorker"in navigator&&location.protocol.startsWith("http"))window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
-await loadPublicPets();
+const app=initializeApp(firebaseConfig),db=getFirestore(app);let pets=[],foundPets=[],deferredPrompt=null;const $=id=>document.getElementById(id);
+function esc(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function toast(m){$("toast").textContent=m;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),3500)}
+function modal(id,show){$(id).hidden=!show;document.body.style.overflow=show?"hidden":""}
+function renderPets(){let q=$("searchInput").value.trim().toLocaleLowerCase("pt-BR"),t=$("typeFilter").value;let v=pets.filter(p=>(t==="todos"||p.type===t)&&[p.name,p.breed,p.traits,p.type].join(" ").toLocaleLowerCase("pt-BR").includes(q));$("approvedCount").textContent=pets.length;$("petGrid").innerHTML=v.map(p=>`<article class="pet-card">${p.photo?`<img class="pet-photo" src="${p.photo}" alt="Foto de ${esc(p.name)}">`:`<div class="pet-photo-placeholder">🐾</div>`}<div class="pet-info"><div class="pet-title"><h3>${esc(p.name)}</h3><span class="species">${esc(p.type)}</span></div><p>${esc([p.breed,p.size,p.traits].filter(Boolean).join(" · "))}</p></div></article>`).join("");$("emptyState").classList.toggle("show",!v.length);$("petGrid").style.display=v.length?"grid":"none"}
+function renderFound(){ $("foundGrid").innerHTML=foundPets.map(p=>`<article class="pet-card">${p.photo?`<img class="pet-photo" src="${p.photo}" alt="Animal encontrado">`:`<div class="pet-photo-placeholder">🐾</div>`}<div class="pet-info"><div class="pet-title"><h3>${esc(p.type)}</h3><span class="species">Encontrado</span></div><p>${esc([p.appearance,p.traits].filter(Boolean).join(" · "))}</p><p class="pet-location">📍 ${esc(p.location)} · ${esc(p.seenDate)}</p><button class="button button-primary claim-btn" data-id="${p.id}">Esse pet é meu</button></div></article>`).join("");$("foundEmpty").classList.toggle("show",!foundPets.length);$("foundGrid").style.display=foundPets.length?"grid":"none" }
+async function load(){try{let [a,b]=await Promise.all([getDocs(collection(db,"pets_public")),getDocs(collection(db,"found_public"))]);pets=a.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0));foundPets=b.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0));renderPets();renderFound()}catch(e){console.error(e);toast("Não foi possível carregar os cadastros. Confira as regras do Firestore.")}}
+function compress(file){return new Promise((res,rej)=>{if(!file.type.startsWith("image/"))return rej(Error("Escolha uma imagem."));createImageBitmap(file).then(b=>{let sc=Math.min(1,640/Math.max(b.width,b.height)),c=document.createElement("canvas");c.width=Math.round(b.width*sc);c.height=Math.round(b.height*sc);c.getContext("2d").drawImage(b,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.68))}).catch(rej)})}
+async function photoChange(input,preview){let file=input.files[0];if(!file)return;try{let d=await compress(file);$(preview).src=d;$(preview).hidden=false;input.dataset.compressed=d}catch(e){toast(e.message)}}
+$("petPhoto").addEventListener("change",e=>photoChange(e.target,"photoPreview"));$("foundPhoto").addEventListener("change",e=>photoChange(e.target,"foundPreview"));
+function resetModal(id,formId,photoId,previewId){modal(id,false);$(formId).reset();$(previewId).hidden=true;$(photoId).value="";delete $(photoId).dataset.compressed}
+["openForm","emptyAdd","joinBtn"].forEach(id=>$(id).addEventListener("click",()=>modal("formModal",true)));$("closeForm").onclick=()=>resetModal("formModal","petForm","petPhoto","photoPreview");$("formModal").onclick=e=>{if(e.target.id==="formModal")$("closeForm").click()};
+["openFoundForm","joinFoundBtn"].forEach(id=>$(id).addEventListener("click",()=>modal("foundModal",true)));$("closeFoundForm").onclick=()=>resetModal("foundModal","foundForm","foundPhoto","foundPreview");$("foundModal").onclick=e=>{if(e.target.id==="foundModal")$("closeFoundForm").click()};
+$("closeClaimForm").onclick=()=>{modal("claimModal",false);$("claimForm").reset()};$("claimModal").onclick=e=>{if(e.target.id==="claimModal")$("closeClaimForm").click()};
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){["formModal","foundModal","claimModal"].forEach(id=>{if(!$(id).hidden)modal(id,false)})}});
+$("searchInput").addEventListener("input",renderPets);$("typeFilter").addEventListener("change",renderPets);
+$("petForm").addEventListener("submit",async e=>{e.preventDefault();let f=e.currentTarget;if(!f.reportValidity())return;let photo=$("petPhoto").dataset.compressed;if(!photo)return toast("Adicione uma foto.");let d=Object.fromEntries(new FormData(f));let btn=f.querySelector('[type=submit]');btn.disabled=true;try{await addDoc(collection(db,"pet_submissions"),{name:d.name.trim(),type:d.type,breed:d.breed.trim(),size:d.size,traits:d.traits.trim(),owner:d.owner.trim(),phone:d.phone.trim(),street:d.street.trim(),number:d.number.trim(),photo,status:"pending",createdAt:serverTimestamp()});$("closeForm").click();toast("Cadastro enviado para aprovação!")}catch(err){console.error(err);toast("Falha ao enviar. Confira as regras do Firestore.")}finally{btn.disabled=false}});
+$("foundForm").addEventListener("submit",async e=>{e.preventDefault();let f=e.currentTarget;if(!f.reportValidity())return;let photo=$("foundPhoto").dataset.compressed;if(!photo)return toast("Adicione uma foto.");let d=Object.fromEntries(new FormData(f)),btn=f.querySelector('[type=submit]');btn.disabled=true;try{await addDoc(collection(db,"found_submissions"),{type:d.type,appearance:d.appearance.trim(),traits:d.traits.trim(),location:d.location.trim(),seenDate:d.seenDate,reporter:d.reporter.trim(),phone:d.phone.trim(),photo,status:"pending",createdAt:serverTimestamp()});$("closeFoundForm").click();toast("Animal encontrado enviado para aprovação!")}catch(err){console.error(err);toast("Falha ao enviar. Confira as regras do Firestore.")}finally{btn.disabled=false}});
+$("foundGrid").addEventListener("click",e=>{let b=e.target.closest(".claim-btn");if(!b)return;$("claimForm").elements.foundPetId.value=b.dataset.id;modal("claimModal",true)});
+$("claimForm").addEventListener("submit",async e=>{e.preventDefault();let f=e.currentTarget;if(!f.reportValidity())return;let d=Object.fromEntries(new FormData(f)),btn=f.querySelector('[type=submit]');btn.disabled=true;try{await addDoc(collection(db,"claim_submissions"),{foundPetId:d.foundPetId,owner:d.owner.trim(),phone:d.phone.trim(),proof:d.proof.trim(),status:"pending",createdAt:serverTimestamp()});$("closeClaimForm").click();toast("Reivindicação enviada. A administração vai analisar!")}catch(err){console.error(err);toast("Não foi possível enviar a reivindicação.")}finally{btn.disabled=false}});
+$("installBtn").addEventListener("click",async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$("installBtn").hidden=true});window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e;$("installBtn").hidden=false});if("serviceWorker"in navigator&&location.protocol.startsWith("http"))window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));await load();
