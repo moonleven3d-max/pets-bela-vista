@@ -54,3 +54,16 @@
 .members-admin .pending-placeholder{display:grid;place-items:center;width:64px;height:64px;border-radius:14px;background:#edf3e7;color:#315b43;font-size:26px;flex-shrink:0}
 .edit-pet{margin-top:8px}
 @media(max-width:800px){.stats-modern{grid-template-columns:1fr}.stats-modern div{border-right:0!important;border-bottom:1px solid var(--line);padding:10px}.stats-modern div:last-child{border-bottom:0}}
+
+/* Cabeçalho principal alinhado ao layout aprovado */
+.site-topbar{height:82px;gap:24px;padding:0 max(4.5vw,24px);}
+.site-nav{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;}
+.site-nav a{display:inline-flex;align-items:center;gap:9px;padding:12px 14px;border-radius:28px;color:#14291f;text-decoration:none;font-size:13px;font-weight:700;white-space:nowrap;}
+.site-nav a:hover,.site-nav a.active{background:#edf3e7;}
+.site-nav svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.topbar-actions{display:flex;align-items:center;gap:9px;white-space:nowrap;border-left:1px solid #e4e9e1;padding-left:20px;}
+.button-icon{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
+.stats-modern{grid-template-columns:repeat(3,minmax(0,1fr));}
+.stats-modern div:nth-child(3):before{content:'♧';display:grid;place-items:center;width:58px;height:58px;border-radius:18px;background:#eeeafa;color:#5b5599;font-size:27px;}
+@media(max-width:1050px){.site-topbar{gap:12px;padding:0 20px}.site-nav{gap:0}.site-nav a{font-size:11px;padding:10px 8px}.topbar-actions{padding-left:10px}.topbar-actions .button{font-size:11px;padding:10px 12px}}
+@media(max-width:760px){.site-topbar{height:auto;min-height:76px;flex-wrap:wrap;padding:12px 16px}.site-nav{order:3;width:100%;justify-content:space-between;overflow-x:auto}.site-nav a{font-size:10px;padding:9px 8px}.site-nav svg{width:16px;height:16px}.topbar-actions{margin-left:auto;border:0;padding:0}.topbar-actions .button{font-size:10px;padding:9px 10px}.stats-modern{grid-template-columns:repeat(3,minmax(0,1fr))}.stats-modern div{flex-direction:column;gap:5px;text-align:center}.stats-modern div:before{width:40px!important;height:40px!important;font-size:19px!important}.stats-modern strong{font-size:22px}.stats-modern span{font-size:10px}}
