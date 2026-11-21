@@ -8,7 +8,10 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function isAdmin() { return signedIn() && request.auth.uid == "9DorSyAFJEdAkrtzjMxjLDst0sa2"; }
     function memberDoc() { return /databases/$(database)/documents/members/$(request.auth.uid); }
+    // Morador aprovado pela administração (WhatsApp confirmado no grupo do bairro): vê contatos e envia avistamentos.
     function isMember() { return signedIn() && exists(memberDoc()) && get(memberDoc()).data.active == true; }
+    // Morador aprovado OU aguardando aprovação: já pode cadastrar e cuidar dos próprios pets.
+    function isResident() { return signedIn() && exists(memberDoc()) && (get(memberDoc()).data.active == true || get(memberDoc()).data.status == "pending"); }
     function incoming() { return request.resource.data; }
     function isOwnerOf(res) { return signedIn() && res.data.ownerUid == request.auth.uid; }
     function keepsOwner() { return incoming().ownerUid == request.auth.uid; }
@@ -19,12 +22,11 @@ service cloud.firestore {
     }
 
     // ---------- Moradores ----------
-    // Cadastro individual, sem aprovação manual: a conta já nasce ativa.
-    // Bloqueio/reativação é feito apenas pela administração.
+    // Cadastro individual: nasce "pending"; a administração aprova após conferir o WhatsApp no grupo do bairro.
     match /members/{uid} {
       allow create: if signedIn() && request.auth.uid == uid
-                    && incoming().active == true
-                    && incoming().keys().hasOnly(["name", "phone", "active", "createdAt"])
+                    && incoming().active == false && incoming().status == "pending"
+                    && incoming().keys().hasOnly(["name", "phone", "active", "status", "createdAt"])
                     && incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 70
                     && incoming().phone is string && incoming().phone.size() <= 20;
       allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
@@ -33,52 +35,52 @@ service cloud.firestore {
 
     // ---------- Pets (perfil público: sem telefone e sem endereço) ----------
     function validPublicPet() {
-      return incoming().keys().hasOnly(["name", "type", "breed", "size", "traits", "description", "photo", "ownerUid", "createdAt", "updatedAt"])
+      return incoming().keys().hasOnly(["name", "type", "sex", "neutered", "breed", "size", "traits", "description", "photo", "ownerUid", "createdAt", "updatedAt"])
           && incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 40
           && incoming().type in ["Cachorro", "Gato", "Outro"]
-          && shortText("breed", 50) && shortText("size", 20) && shortText("traits", 180) && shortText("description", 240)
+          && shortText("sex", 10) && shortText("neutered", 10) && shortText("breed", 50) && shortText("size", 20) && shortText("traits", 180) && shortText("description", 240)
           && shortText("photo", 900000);
     }
     match /pets_public/{id} {
       allow read: if true;
-      allow create: if isAdmin() || (isMember() && keepsOwner() && validPublicPet());
-      allow update: if isAdmin() || (isMember() && isOwnerOf(resource) && keepsOwner() && validPublicPet());
-      allow delete: if isAdmin() || (isMember() && isOwnerOf(resource));
+      allow create: if isAdmin() || (isResident() && keepsOwner() && validPublicPet());
+      allow update: if isAdmin() || (isResident() && isOwnerOf(resource) && keepsOwner() && validPublicPet());
+      allow delete: if isAdmin() || (isResident() && isOwnerOf(resource));
     }
 
     // ---------- Contatos dos responsáveis (somente moradores conectados) ----------
     // Lido por moradores quando o responsável autorizou (allowAlerts), pelo próprio dono e pela administração.
     match /pet_alert_contacts/{id} {
-      allow read: if isAdmin() || (isMember() && (resource.data.allowAlerts == true || isOwnerOf(resource)));
-      allow create: if isAdmin() || (isMember() && keepsOwner()
+      allow read: if isAdmin() || (isMember() && resource.data.allowAlerts == true) || (isResident() && isOwnerOf(resource));
+      allow create: if isAdmin() || (isResident() && keepsOwner()
                     && incoming().keys().hasOnly(["petId", "petName", "guardians", "allowAlerts", "ownerUid"])
                     && incoming().guardians is list && incoming().guardians.size() <= 3
                     && incoming().allowAlerts is bool);
-      allow update: if isAdmin() || (isMember() && isOwnerOf(resource) && keepsOwner()
+      allow update: if isAdmin() || (isResident() && isOwnerOf(resource) && keepsOwner()
                     && incoming().keys().hasOnly(["petId", "petName", "guardians", "allowAlerts", "ownerUid"])
                     && incoming().guardians is list && incoming().guardians.size() <= 3
                     && incoming().allowAlerts is bool);
-      allow delete: if isAdmin() || (isMember() && isOwnerOf(resource));
+      allow delete: if isAdmin() || (isResident() && isOwnerOf(resource));
     }
 
     // ---------- Endereço / referências da casa (privado: dono e administração) ----------
     match /pet_private/{id} {
       allow read: if isAdmin() || isOwnerOf(resource);
-      allow create: if isAdmin() || (isMember() && keepsOwner()
+      allow create: if isAdmin() || (isResident() && keepsOwner()
                     && incoming().keys().hasOnly(["petId", "ownerUid", "street", "number", "referenceUnit", "houseColor", "nearbyReference"]));
-      allow update: if isAdmin() || (isMember() && isOwnerOf(resource) && keepsOwner()
+      allow update: if isAdmin() || (isResident() && isOwnerOf(resource) && keepsOwner()
                     && incoming().keys().hasOnly(["petId", "ownerUid", "street", "number", "referenceUnit", "houseColor", "nearbyReference"]));
-      allow delete: if isAdmin() || (isMember() && isOwnerOf(resource));
+      allow delete: if isAdmin() || (isResident() && isOwnerOf(resource));
     }
 
     // ---------- Alertas de desaparecimento ----------
     // O próprio responsável publica e encerra o alerta do seu pet (id do documento = id do pet).
     match /lost_public/{id} {
       allow read: if true;
-      allow create: if isAdmin() || (isMember() && keepsOwner() && incoming().status == "active"
+      allow create: if isAdmin() || (isResident() && keepsOwner() && incoming().status == "active"
                     && incoming().petId == id && petOwnedByMe(id)
                     && shortText("location", 140) && shortText("notes", 400) && shortText("photo", 900000));
-      allow update: if isAdmin() || (isMember() && isOwnerOf(resource) && keepsOwner()
+      allow update: if isAdmin() || (isResident() && isOwnerOf(resource) && keepsOwner()
                     && incoming().petId == resource.data.petId
                     && incoming().status in ["active", "resolved"]
                     && shortText("location", 140) && shortText("notes", 400) && shortText("photo", 900000));

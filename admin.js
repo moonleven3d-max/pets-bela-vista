@@ -9,7 +9,7 @@ let current = null;
 const L = { members: [], pets: [], contacts: [], priv: [], lost: [], found: [], foundSubs: [], claims: [], petSubs: [], lostSubs: [], sightings: [] };
 const COLS = { members: "members", pets: "pets_public", contacts: "pet_alert_contacts", priv: "pet_private", lost: "lost_public", found: "found_public", foundSubs: "found_submissions", claims: "claim_submissions", petSubs: "pet_submissions", lostSubs: "lost_submissions", sightings: "sightings" };
 const PRIVATE_KEYS = ["street", "number", "referenceUnit", "houseColor", "nearbyReference"];
-const PUBLIC_KEYS = ["name", "type", "breed", "size", "traits", "description", "photo", "ownerUid", "createdAt", "updatedAt"];
+const PUBLIC_KEYS = ["name", "type", "sex", "neutered", "breed", "size", "traits", "description", "photo", "ownerUid", "createdAt", "updatedAt"];
 
 function esc(v = "") { return String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function toast(m) { $("toast").textContent = m; $("toast").classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(() => $("toast").classList.remove("show"), 5000); }
@@ -19,7 +19,8 @@ const fmtTs = t => t?.toDate?.().toLocaleString("pt-BR", { dateStyle: "short", t
 const fmtDT = v => { if (!v) return ""; const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }); };
 const member = uid => L.members.find(m => m.id === uid);
 const memberName = uid => uid ? (member(uid)?.name || (uid === ADMIN_UID ? "Administração" : "conta sem cadastro")) : "não vinculado";
-const memberStatus = m => m.active === true ? ["Ativo", "ok"] : m.status === "blocked" ? ["Bloqueado", "bad"] : ["Inativo", ""];
+const memberStatus = m => m.active === true ? ["Aprovado", "ok"] : m.status === "blocked" ? ["Bloqueado", "bad"] : m.status === "rejected" ? ["Recusado", "bad"] : m.status === "pending" ? ["Aguardando aprovação", ""] : ["Inativo", ""];
+const memberActions = m => m.active === true ? btn("reject", "Bloquear", { act: "block", id: m.id }) : m.status === "pending" ? btn("approve", "Aprovar", { act: "activate", id: m.id }) + btn("reject", "Recusar", { act: "reject-member", id: m.id }) : btn("approve", m.status === "rejected" ? "Aprovar" : "Reativar", { act: "activate", id: m.id });
 const contactOf = id => L.contacts.find(c => (c.petId || c.id) === id);
 const privOf = id => L.priv.find(p => p.id === id);
 const thumb = photo => photo ? `<img src="${esc(photo)}" alt="">` : `<div class="pending-placeholder">🐾</div>`;
@@ -45,13 +46,15 @@ function render() {
   const pendingClaims = L.claims.filter(s => (s.status || "pending") === "pending");
   const activeLost = L.lost.filter(a => a.status === "active");
   $("adminStats").innerHTML = [
-    [L.pets.length, "pets cadastrados"], [L.members.length, "moradores"], [L.found.filter(f => f.status === "active").length, "animais encontrados"],
+    [L.pets.length, "pets cadastrados"], [L.members.length, "moradores"], [L.members.filter(m => m.active !== true && m.status === "pending").length, "moradores aguardando"], [L.found.filter(f => f.status === "active").length, "animais encontrados"],
     [activeLost.length, "alertas ativos"], [pendingClaims.length, "reivindicações pendentes"], [L.sightings.length, "avistamentos"]
   ].map(([n, t]) => `<div><strong>${n}</strong><span>${t}</span></div>`).join("");
 
   // Pendências
   const published = new Set(L.pets.map(p => p.id));
+  const pendingMembers = L.members.filter(m => m.active !== true && m.status === "pending");
   const pend = [
+    ...pendingMembers.map(m => row("", `Novo morador · ${esc(m.name || "")}<span class="tag">aguardando aprovação</span>`, `WhatsApp: <b>${esc(m.phone || "não informado")}</b> · cadastro em ${fmtTs(m.createdAt)}<br>Confira se este número está no grupo de WhatsApp do bairro antes de aprovar.`, memberActions(m))),
     ...pendingFound.map(s => row(s.photo, `Animal encontrado · ${esc(s.type || "")}`, `${esc(s.appearance || "")} ${esc(s.traits || "")}<br>📍 ${esc(s.location || "")} · ${esc(s.seenDate || "")}<br>Enviado por ${esc(s.reporter || "")} · ${esc(s.phone || "")}`, btn("approve", "Publicar", { act: "approve-found", id: s.id }) + btn("reject", "Excluir", { act: "del", col: "foundSubs", id: s.id }))),
     ...pendingClaims.map(s => { const f = L.found.find(x => x.id === s.foundPetId); return row(f?.photo, `Reivindicação · ${esc(s.owner || "")}`, `WhatsApp: ${esc(s.phone || "")}<br>Animal: ${esc(f ? `${f.type} visto em ${f.location}` : s.foundPetId || "não encontrado")}<br>Comprovação: ${esc(s.proof || "")}`, btn("approve", "Confirmar devolução", { act: "approve-claim", id: s.id }) + btn("reject", "Recusar", { act: "reject-claim", id: s.id })); }),
     ...L.petSubs.map(s => row(s.photo, `Cadastro antigo · ${esc(s.name || "Pet")}${published.has(s.id) ? '<span class="tag ok">já publicado</span>' : '<span class="tag">pendente</span>'}`, `${esc(s.owner || "")} · ${esc(s.phone || "")} · morador: ${esc(memberName(s.ownerUid))}<br>${esc([s.street, s.number, s.referenceUnit, s.houseColor, s.nearbyReference].filter(Boolean).join(" · "))}`, (published.has(s.id) ? "" : btn("approve", "Publicar pet", { act: "approve-petsub", id: s.id })) + btn("reject", published.has(s.id) ? "Remover duplicata" : "Excluir", { act: "del", col: "petSubs", id: s.id }))),
@@ -83,7 +86,7 @@ function renderPets() {
   $("adminPetsList").innerHTML = v.map(p => {
     const c = contactOf(p.id), pr = privOf(p.id), linked = p.ownerUid && member(p.ownerUid);
     return row(p.photo, `${esc(p.name)}${!linked ? '<span class="tag bad">sem morador vinculado</span>' : ""}${counts[dupKey(p)] > 1 ? '<span class="tag">possível duplicado</span>' : ""}${L.lost.some(a => (a.petId || a.id) === p.id && a.status === "active") ? '<span class="tag bad">desaparecido</span>' : ""}`,
-      `${esc([p.type, p.breed, p.size].filter(Boolean).join(" · "))}<br>Morador: ${esc(memberName(p.ownerUid))}${c?.guardians?.length ? ` · contatos: ${esc(c.guardians.map(g => `${g.name} ${g.phone}`).join(", "))}${c.allowAlerts ? " (visíveis a moradores)" : " (privados)"}` : ""}<br>${pr ? `🏠 ${esc([pr.street, pr.number, pr.referenceUnit, pr.houseColor, pr.nearbyReference].filter(Boolean).join(" · "))}` : "Sem endereço cadastrado"}`,
+      `${esc([p.type, p.sex, p.breed, p.size, p.neutered ? `castrado(a): ${p.neutered}` : ""].filter(Boolean).join(" · "))}<br>Morador: ${esc(memberName(p.ownerUid))}${c?.guardians?.length ? ` · contatos: ${esc(c.guardians.map(g => `${g.name} ${g.phone}`).join(", "))}${c.allowAlerts ? " (visíveis a moradores)" : " (privados)"}` : ""}<br>${pr ? `🏠 ${esc([pr.street, pr.number, pr.referenceUnit, pr.houseColor, pr.nearbyReference].filter(Boolean).join(" · "))}` : "Sem endereço cadastrado"}`,
       btn("approve", "Abrir / editar", { act: "edit-pet", id: p.id }) + btn("reject", "Excluir", { act: "delete-pet", id: p.id }));
   }).join("") || '<p class="admin-note">Nenhum pet encontrado.</p>';
 }
@@ -93,7 +96,7 @@ function renderMembers() {
   $("membersCount").textContent = L.members.length;
   $("membersList").innerHTML = v.map(m => {
     const [st, cls] = memberStatus(m), n = L.pets.filter(p => p.ownerUid === m.id).length;
-    return `<div class="pending-item member-row" data-member-open="${esc(m.id)}" role="button" tabindex="0"><span class="pending-placeholder">♙</span><span class="pending-details"><b>${esc(m.name || "Morador")} <span class="tag ${cls}">${st}</span></b><small>WhatsApp: ${esc(m.phone || "não informado")} · ${n} pet(s)<br>Cadastro: ${fmtTs(m.createdAt)}<span class="member-row-hint"> · Ver ficha →</span></small></span><span class="pending-actions">${m.active === true ? btn("reject", "Bloquear", { act: "block", id: m.id }) : btn("approve", "Reativar", { act: "activate", id: m.id })}</span></div>`;
+    return `<div class="pending-item member-row" data-member-open="${esc(m.id)}" role="button" tabindex="0"><span class="pending-placeholder">♙</span><span class="pending-details"><b>${esc(m.name || "Morador")} <span class="tag ${cls}">${st}</span></b><small>WhatsApp: ${esc(m.phone || "não informado")} · ${n} pet(s)<br>Cadastro: ${fmtTs(m.createdAt)}<span class="member-row-hint"> · Ver ficha →</span></small></span><span class="pending-actions">${memberActions(m)}</span></div>`;
   }).join("") || '<p class="admin-note">Nenhum morador encontrado.</p>';
 }
 
@@ -108,7 +111,7 @@ function openMemberDetails(id) {
     <div><small>Data de cadastro</small><b>${fmtTs(m.createdAt)}</b></div><div><small>Status da conta</small><b>${st}</b></div>
     <div class="resident-uid"><small>UID (identificador da conta)</small><code>${esc(m.id)}</code></div></div>
     <section class="resident-pets"><h3>Pets vinculados (${linked.length})</h3>${linked.length ? linked.map(p => `<div class="resident-pet">${p.photo ? `<img src="${esc(p.photo)}" alt="">` : "🐾"}<span><b>${esc(p.name)}</b><small>${esc([p.type, p.breed].filter(Boolean).join(" · "))}</small></span>${btn("approve", "Abrir", { act: "edit-pet", id: p.id })}</div>`).join("") : '<p class="admin-note">Nenhum pet vinculado. Para vincular um pet antigo (ex.: a Lua), abra o pet na lista e escolha este morador em “Responsável”.</p>'}</section>
-    <div class="resident-actions">${m.active === true ? btn("reject", "Bloquear acesso", { act: "block", id: m.id }) : btn("approve", "Reativar acesso", { act: "activate", id: m.id })}<button class="small-btn resident-reset-btn" id="memberResetInfo">Redefinir senha</button></div>
+    <div class="resident-actions">${memberActions(m)}<button class="small-btn resident-reset-btn" id="memberResetInfo">Redefinir senha</button></div>
     <p class="resident-security-note" id="residentResetNote" hidden>A troca da senha de outra pessoa não pode ser feita com segurança pelo navegador. Opções: (1) no Firebase Console &gt; Authentication, excluir a conta <code>${esc((m.phone || "").replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, ""))}@login.petsbelavista.invalid</code> e pedir para o morador criar o acesso de novo (depois, vincule os pets à nova conta); ou (2) ativar uma função de servidor com o Firebase Admin SDK. Nunca peça a senha atual do morador.</p>`;
   $("memberDetailsModal").hidden = false;
 }
@@ -119,7 +122,7 @@ function openPetEdit(id) {
   const c = contactOf(id) || {}, pr = privOf(id) || {}, f = $("petEditForm");
   f.dataset.id = id;
   $("petEditTitle").textContent = p.name;
-  for (const k of ["name", "type", "breed", "size", "traits", "description"]) f.elements[k].value = p[k] || "";
+  for (const k of ["name", "type", "sex", "neutered", "breed", "size", "traits", "description"]) f.elements[k].value = p[k] || "";
   const opts = [...L.members].sort((a, b) => (a.name || "").localeCompare(b.name || "", "pt-BR"));
   $("petEditOwner").innerHTML = `<option value="">— não vinculado —</option>` + opts.map(m => `<option value="${esc(m.id)}">${esc(m.name || "Morador")} · ${esc(m.phone || "")}</option>`).join("") + (p.ownerUid && !member(p.ownerUid) ? `<option value="${esc(p.ownerUid)}">Conta sem cadastro (${esc(p.ownerUid)})</option>` : "");
   f.elements.ownerUid.value = p.ownerUid || "";
@@ -138,7 +141,7 @@ async function savePetEdit(e) {
   const guardians = [0, 1, 2].map(i => ({ name: d[`g${i}n`].trim(), phone: d[`g${i}p`].trim() })).filter(g => g.name || g.phone);
   try {
     const b = writeBatch(db);
-    b.set(doc(db, "pets_public", id), { name: d.name.trim(), type: d.type, breed: d.breed.trim(), size: d.size, traits: d.traits.trim(), description: d.description.trim(), photo: p.photo || "", ownerUid: owner, createdAt: p.createdAt || serverTimestamp(), updatedAt: serverTimestamp() });
+    b.set(doc(db, "pets_public", id), { name: d.name.trim(), type: d.type, sex: d.sex || "", neutered: d.neutered || "", breed: d.breed.trim(), size: d.size, traits: d.traits.trim(), description: d.description.trim(), photo: p.photo || "", ownerUid: owner, createdAt: p.createdAt || serverTimestamp(), updatedAt: serverTimestamp() });
     b.set(doc(db, "pet_alert_contacts", id), { petId: id, petName: d.name.trim(), guardians, allowAlerts: d.allowAlerts === "yes", ownerUid: owner });
     b.set(doc(db, "pet_private", id), { petId: id, ownerUid: owner, ...Object.fromEntries(PRIVATE_KEYS.map(k => [k, (d[k] || "").trim()])) });
     for (const a of L.lost.filter(a => (a.petId || a.id) === id)) b.update(doc(db, "lost_public", a.id), { ownerUid: owner, name: d.name.trim() });
@@ -199,8 +202,13 @@ async function act(t) {
     if (a === "edit-pet") return openPetEdit(id);
     if (a === "delete-pet") return deletePet(id);
     if (a === "block" || a === "activate") {
-      await updateDoc(doc(db, "members", id), a === "block" ? { active: false, status: "blocked" } : { active: true, status: "active" });
-      toast(a === "block" ? "Acesso bloqueado." : "Acesso reativado.");
+      await updateDoc(doc(db, "members", id), a === "block" ? { active: false, status: "blocked" } : { active: true, status: "approved", approvedAt: serverTimestamp() });
+      toast(a === "block" ? "Acesso bloqueado." : "Morador aprovado: as informações adicionais foram liberadas.");
+      $("memberDetailsModal").hidden = true;
+    } else if (a === "reject-member") {
+      if (!confirm("Recusar este cadastro? A pessoa não conseguirá entrar.")) return;
+      await updateDoc(doc(db, "members", id), { active: false, status: "rejected", reviewedAt: serverTimestamp() });
+      toast("Cadastro recusado.");
       $("memberDetailsModal").hidden = true;
     } else if (a === "del") {
       if (!confirm("Excluir este registro?")) return;

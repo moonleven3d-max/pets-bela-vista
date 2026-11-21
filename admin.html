@@ -20,7 +20,7 @@
     <div id="adminContent" hidden>
       <div class="admin-head"><h3>Painel geral</h3><div class="admin-section-actions"><button class="text-btn" id="reloadBtn">Atualizar</button><button class="text-btn" id="logoutBtn">Sair</button></div></div>
       <div class="admin-stats" id="adminStats"></div>
-      <section class="admin-data-section"><div class="admin-head"><h3>Solicitações para analisar <span class="count-pill" id="pendingCount">0</span></h3></div><p class="admin-note">Animais encontrados enviados por moradores ou visitantes, reivindicações e cadastros/alertas antigos que ficaram pendentes.</p><div id="pendingList" class="pending-list"></div></section>
+      <section class="admin-data-section"><div class="admin-head"><h3>Solicitações para analisar <span class="count-pill" id="pendingCount">0</span></h3></div><p class="admin-note">Novos moradores (confira o WhatsApp no grupo do bairro), animais encontrados, reivindicações e cadastros/alertas antigos.</p><div id="pendingList" class="pending-list"></div></section>
       <section class="admin-data-section"><div class="admin-head"><h3>Pets cadastrados <span class="count-pill" id="adminPetsCount">0</span></h3><button class="text-btn" id="migrateBtn">Separar dados privados antigos</button></div><input class="admin-filter" id="petsFilter" type="search" placeholder="Buscar por nome do pet, espécie ou morador..."><div id="adminPetsList" class="pending-list"></div></section>
       <section class="admin-data-section members-admin"><div class="admin-head"><h3>Moradores <span class="count-pill" id="membersCount">0</span></h3></div><input class="admin-filter" id="membersFilter" type="search" placeholder="Buscar por nome ou WhatsApp..."><div id="membersList" class="pending-list"></div></section>
       <section class="admin-data-section"><div class="admin-head"><h3>Alertas de desaparecimento <span class="count-pill" id="adminLostCount">0</span></h3></div><div id="adminLostList" class="pending-list"></div></section>
@@ -45,7 +45,7 @@
     <form id="petEditForm"><div class="form-grid admin-edit-grid">
       <label>Nome *<input name="name" required maxlength="40"></label>
       <label>Espécie *<select name="type" required><option>Cachorro</option><option>Gato</option><option>Outro</option></select></label>
-      <label>Raça<input name="breed" maxlength="50"></label>
+      <label>Sexo<select name="sex"><option value="">Não informado</option><option>Fêmea</option><option>Macho</option></select></label><label>Castrado(a)?<select name="neutered"><option value="">Não informado</option><option>Sim</option><option>Não</option></select></label><label>Raça<input name="breed" maxlength="50"></label>
       <label>Porte<select name="size"><option value="">Não informado</option><option>Pequeno</option><option>Médio</option><option>Grande</option></select></label>
       <label class="full">Cor e características<textarea name="traits" maxlength="180" rows="2"></textarea></label>
       <label class="full">Descrição<input name="description" maxlength="240"></label>

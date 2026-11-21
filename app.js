@@ -34,7 +34,9 @@ function waShare(text) { return `https://wa.me/?text=${encodeURIComponent(text)}
 function petUrl(id) { return `${SITE}/pet/${encodeURIComponent(id)}`; }
 function fmtDateTime(v) { if (!v) return ""; const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }); }
 function fmtDate(v) { if (!v) return ""; const d = new Date(v + (String(v).length === 10 ? "T12:00" : "")); return isNaN(d) ? String(v) : d.toLocaleDateString("pt-BR"); }
-function isMemberActive() { return !!state.user && (state.member?.active === true || state.user.uid === ADMIN_UID); }
+function isMemberActive() { return !!state.user && (state.member?.active === true || state.user.uid === ADMIN_UID); } // aprovado
+function isPending() { return !!state.user && !isAdminUser() && state.member?.active !== true && state.member?.status === "pending"; }
+const PENDING_MSG = "Seu cadastro está em análise: vamos confirmar se seu WhatsApp está no grupo do bairro. Depois da aprovação, você verá as informações adicionais dos pets.";
 function isAdminUser() { return state.user?.uid === ADMIN_UID; }
 function myPets() { return state.user ? state.pets.filter(p => p.ownerUid === state.user.uid) : []; }
 function alertFor(petId) { return state.lost.find(a => (a.petId || a.id) === petId); }
@@ -70,11 +72,11 @@ async function load() {
   }
   state.contacts = new Map();
   state.mySightings = [];
-  if (state.user && isMemberActive()) {
+  if (state.user && (isMemberActive() || isPending())) {
     try {
       const qs = isAdminUser()
         ? [getDocs(collection(db, "pet_alert_contacts"))]
-        : [getDocs(query(collection(db, "pet_alert_contacts"), where("allowAlerts", "==", true))),
+        : [...(isMemberActive() ? [getDocs(query(collection(db, "pet_alert_contacts"), where("allowAlerts", "==", true)))] : []),
            getDocs(query(collection(db, "pet_alert_contacts"), where("ownerUid", "==", state.user.uid)))];
       for (const snap of await Promise.all(qs)) snap.docs.forEach(d => state.contacts.set(d.data().petId || d.id, { id: d.id, ...d.data() }));
     } catch (e) { console.error("contatos", e); }
@@ -92,9 +94,9 @@ async function load() {
 // ---------- renderização ----------
 function petCard(p, owner = false) {
   const a = alertFor(p.id);
-  return `<article class="pet-card">${p.photo ? `<img class="pet-photo" src="${esc(p.photo)}" alt="Foto de ${esc(p.name)}" loading="lazy">` : `<div class="pet-photo-placeholder">🐾</div>`}
+  return `<article class="pet-card pet-card-click" data-pet-details="${esc(p.id)}" tabindex="0" role="button" aria-label="Ver detalhes de ${esc(p.name)}">${p.photo ? `<img class="pet-photo" src="${esc(p.photo)}" alt="Foto de ${esc(p.name)}" loading="lazy">` : `<div class="pet-photo-placeholder">🐾</div>`}
   <div class="pet-info"><div class="pet-title"><h3>${esc(p.name)}</h3><span class="species${a ? " species-lost" : ""}">${a ? "Desaparecido" : esc(p.type)}</span></div>
-  <p>${esc([p.breed, p.traits].filter(Boolean).join(" · "))}</p>
+  <p>${esc([p.sex, p.breed, p.traits].filter(Boolean).join(" · "))}</p>
   <button class="details-link" data-pet-details="${esc(p.id)}">Ver mais detalhes <span>→</span></button>
   ${owner ? `<div class="owner-actions"><button class="small-btn approve" data-pet-edit="${esc(p.id)}">Editar cadastro</button>${a ? `<button class="small-btn approve" data-resolve-lost="${esc(p.id)}">Meu pet foi encontrado</button>` : `<button class="small-btn reject" data-lost-for="${esc(p.id)}">Meu pet fugiu</button>`}</div>` : ""}
   </div></article>`;
@@ -139,7 +141,8 @@ function renderAuth() {
   $("goMyPets").hidden = isAdminUser();
   $("goAdmin").hidden = !isAdminUser();
   $("memberTitle").textContent = on ? "Você está conectado" : "Acesso dos moradores";
-  $("memberIntro").textContent = on ? `Conectado como ${state.member?.name || (isAdminUser() ? "administração" : "morador")}${state.member?.phone ? ` · ${state.member.phone}` : ""}.` : "Entre ou crie seu acesso para ajudar a cuidar dos pets do bairro.";
+  $("memberIntro").textContent = on ? `Conectado como ${state.member?.name || (isAdminUser() ? "administração" : "morador")}${state.member?.phone ? ` · ${state.member.phone}` : ""}.${isPending() ? " " + PENDING_MSG : ""}` : "Entre ou crie seu acesso para ajudar a cuidar dos pets do bairro.";
+  $("pendingBanner").hidden = !isPending();
 }
 function renderAll() { renderAuth(); renderPets(); renderMyPets(); renderFound(); renderDashboard(); }
 
@@ -154,6 +157,8 @@ async function openPetDetails(id, { pushUrl = true } = {}) {
   let extra;
   if (!state.user) {
     extra = `<div class="details-extra"><b>Informações adicionais</b><p>Visualize as informações adicionais ao se cadastrar na comunidade.</p><button class="button button-outline-light" data-open-member>Entrar / Cadastrar morador</button></div>`;
+  } else if (isPending() && !owner) {
+    extra = `<div class="details-extra"><b>Informações adicionais</b><p>${PENDING_MSG}</p></div>`;
   } else {
     let priv = null;
     if (owner || isAdminUser()) { try { const s = await getDoc(doc(db, "pet_private", id)); priv = s.exists() ? s.data() : null; } catch (e) { console.error(e); } }
@@ -171,7 +176,7 @@ async function openPetDetails(id, { pushUrl = true } = {}) {
     <p class="alert-help">Se você viu este pet: não corra atrás dele, observe para onde foi e avise a família${state.user ? " pelo botão abaixo" : " (entre na comunidade para ver os contatos autorizados)"}. Se conseguir, ofereça água e mantenha-o em local seguro.</p>
     <div class="owner-actions"><a class="small-btn share-wa" href="${waShare(lostMessage(a))}" target="_blank" rel="noopener">Compartilhar no grupo do WhatsApp</a><button class="small-btn approve" data-copy-link="${esc(id)}">Copiar link</button></div></div>` : "";
   $("petDetailsTitle").textContent = p.name;
-  $("petDetailsContent").innerHTML = `${alertBox}${p.photo ? `<img class="details-photo" src="${esc(p.photo)}" alt="Foto de ${esc(p.name)}">` : ""}<div class="details-facts">${p.type ? `<span class="species">${esc(p.type)}</span>` : ""}${p.breed ? `<p><b>Raça:</b> ${esc(p.breed)}</p>` : ""}${p.size ? `<p><b>Porte:</b> ${esc(p.size)}</p>` : ""}${p.traits ? `<p><b>Cor e características:</b> ${esc(p.traits)}</p>` : ""}${p.description ? `<p><b>Descrição:</b> ${esc(p.description)}</p>` : ""}</div>${extra}`;
+  $("petDetailsContent").innerHTML = `${alertBox}${p.photo ? `<img class="details-photo" src="${esc(p.photo)}" alt="Foto de ${esc(p.name)}">` : ""}<div class="details-facts">${p.type ? `<span class="species">${esc(p.type)}</span>` : ""}${p.sex ? `<p><b>Sexo:</b> ${esc(p.sex)}</p>` : ""}${p.breed ? `<p><b>Raça:</b> ${esc(p.breed)}</p>` : ""}${p.size ? `<p><b>Porte:</b> ${esc(p.size)}</p>` : ""}${p.neutered ? `<p><b>Castrado(a):</b> ${esc(p.neutered)}</p>` : ""}${p.traits ? `<p><b>Cor e características:</b> ${esc(p.traits)}</p>` : ""}${p.description ? `<p><b>Descrição:</b> ${esc(p.description)}</p>` : ""}</div>${extra}`;
   modal("petDetailsModal", true);
   if (pushUrl && location.pathname !== `/pet/${id}`) history.replaceState(null, "", `/pet/${encodeURIComponent(id)}`);
   document.title = `${p.name}${a ? " está desaparecido(a)" : ""} · Pets Bela Vista`;
@@ -220,11 +225,16 @@ function resetPetForm() {
   $("formTitle").textContent = "Vamos conhecer seu pet?"; $("formEyebrow").textContent = "NOVO CADASTRO";
 }
 function requireMember(msg) {
-  if (state.user && isMemberActive() && !isAdminUser()) return true;
+  if (state.user && !isAdminUser() && (isMemberActive() || isPending())) return true;
   if (isAdminUser()) { toast("Use a área administrativa para gerenciar cadastros. Para cadastrar seu próprio pet, entre com uma conta de morador."); return false; }
   toast(msg || "Entre ou crie seu acesso de morador primeiro.");
   modal("memberModal", true);
   return false;
+}
+function requireApproved(msg) {
+  if (!requireMember(msg)) return false;
+  if (isPending()) { toast(PENDING_MSG, 6000); return false; }
+  return true;
 }
 function openPetForm() {
   if (!requireMember()) return;
@@ -239,7 +249,7 @@ async function beginEditPet(petId) {
   if (!pet || !state.user || pet.ownerUid !== state.user.uid) { toast("Este pet não está vinculado à sua conta. Peça à administração para fazer o vínculo."); return; }
   resetPetForm();
   const f = $("petForm"); f.dataset.editId = pet.id;
-  for (const k of ["name", "type", "breed", "size", "traits", "description"]) if (f.elements[k]) f.elements[k].value = pet[k] || "";
+  for (const k of ["name", "type", "sex", "neutered", "breed", "size", "traits", "description"]) if (f.elements[k]) f.elements[k].value = pet[k] || "";
   const c = state.contacts.get(pet.id), gs = c?.guardians || [];
   ["owner", "owner2", "owner3"].forEach((k, i) => f.elements[k].value = gs[i]?.name || (i === 0 ? state.member?.name || "" : ""));
   ["phone", "phone2", "phone3"].forEach((k, i) => f.elements[k].value = gs[i]?.phone || (i === 0 ? state.member?.phone || "" : ""));
@@ -268,7 +278,7 @@ async function savePet(e) {
     if (editId && existing?.ownerUid !== state.user.uid) throw new Error("Este pet não está vinculado à sua conta.");
     const id = editId || doc(collection(db, "pets_public")).id;
     const uid = state.user.uid;
-    const publicPet = { name: d.name.trim(), type: d.type, breed: d.breed.trim(), size: d.size, traits: d.traits.trim(), description: (d.description || "").trim(), photo, ownerUid: uid, createdAt: existing?.createdAt || serverTimestamp(), updatedAt: serverTimestamp() };
+    const publicPet = { name: d.name.trim(), type: d.type, sex: d.sex || "", neutered: d.neutered || "", breed: d.breed.trim(), size: d.size, traits: d.traits.trim(), description: (d.description || "").trim(), photo, ownerUid: uid, createdAt: existing?.createdAt || serverTimestamp(), updatedAt: serverTimestamp() };
     const guardians = [[d.owner, d.phone], [d.owner2, d.phone2], [d.owner3, d.phone3]].map(([n, ph]) => ({ name: (n || "").trim(), phone: (ph || "").trim() })).filter(g => g.name || g.phone);
     const batch = writeBatch(db);
     batch.set(doc(db, "pets_public", id), publicPet);
@@ -330,7 +340,7 @@ async function resolveLost(petId) {
 
 // ---------- avistamento de pet cadastrado ----------
 function openSighting(petId = "") {
-  if (!requireMember("Entre na comunidade para avisar o responsável. Se o animal não for cadastrado, use “Cadastrar animal encontrado”.")) return;
+  if (!requireApproved("Entre na comunidade para avisar o responsável. Se o animal não for cadastrado, use “Cadastrar animal encontrado”.")) return;
   $("sightingPetSelect").innerHTML = '<option value="">Selecione o pet</option>' + state.pets.filter(p => p.ownerUid !== state.user.uid).map(p => `<option value="${esc(p.id)}">${esc(p.name)} · ${esc(p.type)}${alertFor(p.id) ? " · DESAPARECIDO" : ""}</option>`).join("");
   $("sightingPetSelect").value = petId;
   const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -390,7 +400,7 @@ async function ensureMemberDoc(user, name, phone) {
   const snap = await getDoc(ref);
   if (snap.exists()) return snap.data();
   // Contas criadas na versão anterior podem ter ficado sem cadastro em "members": cria agora, já ativo.
-  const data = { name: (name || "Morador").trim().slice(0, 70), phone: (phone || "").trim().slice(0, 20), active: true, createdAt: serverTimestamp() };
+  const data = { name: (name || "Morador").trim().slice(0, 70), phone: (phone || "").trim().slice(0, 20), active: false, status: "pending", createdAt: serverTimestamp() };
   await setDoc(ref, data);
   return data;
 }
@@ -422,11 +432,11 @@ async function signup() {
   try {
     const canon = canonicalPhone(d.phone);
     const cred = await createUserWithEmailAndPassword(auth, loginEmail(canon), d.password);
-    await setDoc(doc(db, "members", cred.user.uid), { name: d.name.trim(), phone: d.phone.trim(), active: true, createdAt: serverTimestamp() });
+    await setDoc(doc(db, "members", cred.user.uid), { name: d.name.trim(), phone: d.phone.trim(), active: false, status: "pending", createdAt: serverTimestamp() });
     state.signingUp = false;
     f.reset(); modal("memberModal", false);
     await onUser(cred.user);
-    toast(`Bem-vindo(a), ${d.name.trim().split(" ")[0]}! Seu acesso está pronto. Agora você já pode cadastrar seus pets. 🐾`, 6000);
+    toast(`Cadastro recebido, ${d.name.trim().split(" ")[0]}! Você já pode cadastrar seus pets. Vamos confirmar se seu WhatsApp está no grupo do bairro e, após a aprovação, você verá as informações adicionais dos pets. 🐾`, 8000);
   } catch (err) {
     console.error(err);
     toast(err.code === "auth/email-already-in-use" ? "Já existe um acesso com este WhatsApp. Use “Entrar” com sua senha." : err.code === "auth/weak-password" ? "Senha fraca: use pelo menos 6 caracteres." : err.code === "permission-denied" ? "Não foi possível concluir o cadastro (regras do Firestore desatualizadas)." : err.message);
@@ -439,9 +449,9 @@ async function onUser(user) {
     else {
       try {
         const me = await ensureMemberDoc(user);
-        if (me.active !== true) {
+        if (me.active !== true && me.status !== "pending") {
           await signOut(auth);
-          toast(me.status === "blocked" ? "Seu acesso está bloqueado. Fale com a administração." : "Seu acesso está desativado. Fale com a administração para reativá-lo.", 6000);
+          toast(me.status === "blocked" ? "Seu acesso está bloqueado. Fale com a administração." : me.status === "rejected" ? "Não conseguimos confirmar seu WhatsApp no grupo do bairro. Fale com a administração." : "Seu acesso está desativado. Fale com a administração para reativá-lo.", 7000);
           return; // onAuthStateChanged(null) recarrega a página
         }
         state.user = user; state.member = me;
@@ -497,6 +507,8 @@ document.addEventListener("click", async e => {
   if (t.dataset.copyLink) { try { await navigator.clipboard.writeText(petUrl(t.dataset.copyLink)); toast("Link copiado!"); } catch { toast(petUrl(t.dataset.copyLink)); } return; }
   if ("openMember" in t.dataset) { closePetDetails(); modal("memberModal", true); }
 });
+
+document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.classList?.contains("pet-card-click")) { e.preventDefault(); openPetDetails(e.target.dataset.petDetails); } });
 
 // PWA
 $("installBtn").addEventListener("click", async () => { if (!state.deferredPrompt) return; state.deferredPrompt.prompt(); await state.deferredPrompt.userChoice; state.deferredPrompt = null; $("installBtn").hidden = true; });

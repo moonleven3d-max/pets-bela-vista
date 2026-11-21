@@ -108,3 +108,6 @@
 .admin-edit-grid{margin-top:8px}
 .admin-section-actions{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:700px){.member-buttons{grid-template-columns:1fr}.mini-alert{flex-wrap:wrap}.mini-alert-actions{flex-direction:row;width:100%}}
+
+.pet-card-click{cursor:pointer}.pet-card-click:focus-visible{outline:3px solid #8ca98c;outline-offset:2px}
+.pending-banner{background:#fff6e0;border:1px solid #f0dca6;color:#6b4d00;border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.5;margin:0 0 18px}
