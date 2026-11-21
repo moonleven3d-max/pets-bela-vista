@@ -1,0 +1,33 @@
+PET DO BAIRRO — VERSÃO FIREBASE (primeira integração)
+
+Projeto Firebase: pets-bela-vista
+UID administrativo autorizado: 9DorSyAFJEdAkrtzjMxjLDst0sa2
+
+FUNCIONALIDADES
+- Consulta pública de pets aprovados (pets_public).
+- Cadastro público enviado para pet_submissions com status pending.
+- Nome, telefone e endereço do tutor ficam somente na coleção privada pet_submissions.
+- Login administrativo via Firebase Authentication (e-mail/senha).
+- Somente o UID configurado pode consultar pendências, aprovar ou rejeitar.
+- A aprovação publica somente dados do animal; não publica telefone/endereço/nome do tutor.
+
+ANTES DE PUBLICAR
+1. Confirme no Firebase Authentication que o usuário administrador foi criado com o e-mail correto.
+2. Confirme que o UID desse usuário é exatamente o UID configurado neste projeto.
+3. No Firestore > Regras, publique o conteúdo de firestore.rules (ou use Firebase CLI).
+4. Teste cadastro público, consulta pública e aprovação com a conta administradora.
+5. Não compartilhe dados reais até concluir os testes e publicar regras.
+
+FOTOS
+As fotos são reduzidas no navegador e armazenadas como JPEG Data URL dentro do documento Firestore para evitar depender do Cloud Storage nesta primeira prova de conceito. Isso consome a cota do Firestore e não é indicado para grande volume; migrar para armazenamento próprio é recomendável antes de crescer.
+
+PUBLICAÇÃO PELO TERMINAL
+- Instale Node.js LTS e Firebase CLI: npm install -g firebase-tools
+- Na pasta do projeto: firebase login
+- Depois: firebase use pets-bela-vista
+- Publicar regras: firebase deploy --only firestore:rules
+- Publicar site: firebase deploy --only hosting
+- Ou ambos: firebase deploy
+
+SEGURANÇA
+A apiKey do Firebase Web é identificador público, não senha. A segurança depende das regras Firestore e da autenticação. Nunca coloque credenciais privadas neste projeto.
