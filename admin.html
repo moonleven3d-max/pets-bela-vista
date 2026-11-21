@@ -8,9 +8,9 @@
 <body>
 <header class="topbar"><a class="brand" href="/" aria-label="Pets Bela Vista - início"><span class="brand-mark">🐾</span><span><b>Pets Bela Vista</b><small>Área administrativa</small></span></a></header>
 <main class="section" style="max-width:980px;margin:3rem auto;">
-  <div class="section-heading"><div><span class="eyebrow">ACESSO RESTRITO</span><h2>Área do administrador</h2><p>Entre para revisar os cadastros enviados pelos moradores.</p></div></div>
+  <div class="section-heading"><div><span class="eyebrow">ACESSO RESTRITO</span><h2>Área do administrador</h2><p>Entre com o e-mail e a senha da conta administradora cadastrada no Firebase Authentication.</p></div></div>
   <section class="admin-panel" style="display:block;">
-    <div class="admin-login" id="adminLogin"><label>E-mail<input type="email" id="adminEmail" placeholder="E-mail da administradora" autocomplete="username"></label><label>Senha<input type="password" id="adminPassword" placeholder="Sua senha" autocomplete="current-password"></label><button class="button button-primary" id="loginBtn">Entrar</button><small>Acesso restrito à administradora autorizada.</small></div>
+    <div class="admin-login" id="adminLogin"><label>E-mail<input type="email" id="adminEmail" placeholder="E-mail da administradora" autocomplete="username"></label><label>Senha<input type="password" id="adminPassword" placeholder="Sua senha" autocomplete="current-password"></label><button class="button button-primary" id="loginBtn">Entrar</button><small>Acesso restrito. Se o login falhar, confirme se esta conta possui o UID administrador configurado em firebase-config.js.</small></div>
     <div id="adminContent" hidden><div class="admin-head"><h3>Solicitações para analisar <span class="count-pill" id="pendingCount">0</span></h3><button class="text-btn" id="logoutBtn">Sair</button></div><div id="pendingList" class="pending-list"></div><div class="admin-tools"><button class="text-btn" id="exportBtn">Exportar cadastros (JSON)</button></div></div>
   </section>
 </main>
