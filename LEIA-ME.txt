@@ -22,3 +22,7 @@ As fotos são comprimidas no navegador e guardadas como Data URL no Firestore. �
 
 ADMIN
 Apenas o UID administrativo configurado no firebase-config.js e nas regras pode acessar os registros privados e aprovar/rejeitar. Nunca compartilhe senhas ou credenciais privadas.
+
+
+NOVO: múltiplos responsáveis e alertas por WhatsApp
+O formulário aceita até três responsáveis. Os números só são disponibilizados no botão de alerta se a pessoa marcar a autorização específica. A autorização deixa claro que esses telefones ficarão visíveis aos visitantes. O botão abre o WhatsApp com mensagem pronta; o visitante informa o local no campo do cartão antes de enviar. Publique também as regras atualizadas de firestore.rules no Firebase.
