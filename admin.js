@@ -1,0 +1,19 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { getFirestore, collection, getDocs, query, where, doc, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import { firebaseConfig, ADMIN_UID } from "./firebase-config.js";
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
+let pending=[], currentUser=null;
+const $=id=>document.getElementById(id);
+function toast(msg){$("toast").textContent=msg;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),3500);}
+function esc(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function render(){
+ $("pendingCount").textContent=pending.length;
+ $("pendingList").innerHTML=pending.length?pending.map(p=>`<div class="pending-item">${p.photo?`<img src="${p.photo}" alt="">`:`<div class="pending-placeholder">🐾</div>`}<div class="pending-details"><b>${esc(p.name)} · ${esc(p.type)}</b><small>${esc(p.owner)} · ${esc(p.phone)}</small><small>${esc(p.street)}, ${esc(p.number)} · ${esc(p.traits)}</small></div><div class="pending-actions"><button class="small-btn approve" data-action="approve" data-id="${p.id}">Aprovar</button><button class="small-btn reject" data-action="reject" data-id="${p.id}">Rejeitar</button></div></div>`).join(""):'<p class="admin-note">Nenhum cadastro aguardando aprovação.</p>';
+}
+async function loadPending(){if(!currentUser||currentUser.uid!==ADMIN_UID)return;try{const snap=await getDocs(query(collection(db,"pet_submissions"),where("status","==","pending")));pending=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));render();}catch(e){console.error(e);toast("Não foi possível carregar os cadastros pendentes. Confira as regras do Firestore.");}}
+$("loginBtn").addEventListener("click",async()=>{try{const c=await signInWithEmailAndPassword(auth,$("adminEmail").value.trim(),$("adminPassword").value);if(c.user.uid!==ADMIN_UID){await signOut(auth);toast("Esta conta não tem permissão de administração.");}}catch(e){console.error(e);toast("Não foi possível entrar. Confira e-mail e senha.");}});
+$("logoutBtn").addEventListener("click",()=>signOut(auth));
+onAuthStateChanged(auth,async user=>{currentUser=user;const isAdmin=!!user&&user.uid===ADMIN_UID;$("adminLogin").hidden=isAdmin;$("adminContent").hidden=!isAdmin;if(isAdmin){$("adminEmail").value=user.email||"";await loadPending();}});
+$("pendingList").addEventListener("click",async e=>{const btn=e.target.closest("button[data-action]");if(!btn||!currentUser||currentUser.uid!==ADMIN_UID)return;const pet=pending.find(x=>x.id===btn.dataset.id);if(!pet)return;btn.disabled=true;try{if(btn.dataset.action==="approve"){await setDoc(doc(db,"pets_public",pet.id),{name:pet.name,type:pet.type,breed:pet.breed||"",size:pet.size||"",traits:pet.traits,photo:pet.photo,createdAt:serverTimestamp()});await deleteDoc(doc(db,"pet_submissions",pet.id));toast(`${pet.name} foi aprovado!`);}else{if(!confirm(`Rejeitar e excluir o cadastro de ${pet.name}?`)){btn.disabled=false;return;}await deleteDoc(doc(db,"pet_submissions",pet.id));toast("Cadastro rejeitado e removido.");}await loadPending();}catch(err){console.error(err);toast("Não foi possível concluir. Confira as regras do Firestore.");btn.disabled=false;}});
+$("exportBtn").addEventListener("click",()=>{const blob=new Blob([JSON.stringify(pending,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="pets-bela-vista-pendentes.json";a.click();URL.revokeObjectURL(a.href);});
