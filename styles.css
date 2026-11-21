@@ -71,3 +71,40 @@
 .member-submit{margin-top:18px}.members-admin,.admin-data-section{margin-top:30px}.admin-data-section h3{font:700 17px Manrope}.admin-data-grid{display:grid;gap:12px}.admin-status{font-size:11px;color:var(--muted)}
 
 [hidden]{display:none!important}.details-link{border:0;background:transparent;color:var(--green);font-size:12px;font-weight:700;padding:5px 0;display:inline-flex;gap:8px;align-items:center}.details-link:hover{text-decoration:underline}.pet-details-modal{max-width:560px}.details-photo{width:100%;max-height:300px;object-fit:cover;border-radius:14px;margin:8px 0 16px}.details-facts{padding:4px 0 12px}.details-facts p{font-size:13px;color:var(--muted);line-height:1.55;margin:9px 0}.details-facts b{color:var(--ink)}.details-extra{background:var(--green-soft);border-radius:12px;padding:16px;margin-top:12px}.details-extra>b{font:700 14px Manrope;color:var(--green)}.details-extra p{font-size:12px;line-height:1.6;color:var(--ink);margin:8px 0}.details-extra small{font-size:11px;color:var(--muted)}.my-pets-section{background:#fbfcf9;border-radius:20px;margin-top:24px;padding-top:36px;padding-bottom:36px}.my-pets-section[hidden]{display:none!important}.my-pets-section .panel-empty{color:var(--muted);font-size:13px}.member-connected-actions{display:flex;gap:10px;flex-wrap:wrap}.member-submit{margin-top:24px}.site-nav a[hidden]{display:none!important}
+/* ---- Ajustes v3 (alertas, avistamentos, admin) ---- */
+.species-lost{background:#fde3df;color:#a33a2c}
+.owner-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.owner-actions .small-btn,.owner-actions a.small-btn{text-decoration:none;display:inline-flex;align-items:center}
+.share-wa{background:#25d366!important;color:#fff!important;border-color:#25d366!important;text-decoration:none}
+.mini-alert-actions{display:flex;flex-direction:column;gap:6px}
+.mini-alert .share-mini{text-decoration:none;text-align:center}
+.mini-ph{width:72px;height:72px;border-radius:12px;font-size:28px;flex-shrink:0}
+.alert-box{background:#fff2f0;border:1px solid #f3cfc9;border-radius:14px;padding:14px 16px;margin:6px 0 12px}
+.alert-box>b{color:#a33a2c;font:800 15px Manrope,sans-serif}
+.alert-box p{font-size:13px;line-height:1.55;margin:8px 0}
+.alert-help{color:var(--muted);font-size:12px!important}
+.private-box{background:#fff;border-radius:10px;padding:10px;font-size:12px}
+.details-extra a{color:var(--green);font-weight:700}
+.share-box{margin-top:6px}
+.share-box h3{font:800 17px Manrope,sans-serif;color:var(--green)}
+.share-box pre{white-space:pre-wrap;font:13px/1.5 'DM Sans',sans-serif;background:var(--green-soft);padding:14px;border-radius:12px}
+.share-link{font-size:12px;word-break:break-all;color:var(--muted)}
+.member-buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.member-buttons .member-submit{margin-top:0}
+.field-hint{font-weight:400;color:var(--muted)}
+.sub-heading{font:800 17px Manrope,sans-serif;margin:28px 0 6px}
+.my-sightings .mini-sighting{border:1px solid var(--line)}
+#foundPhoto{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+#foundPreview{width:90px;height:90px;object-fit:cover;border-radius:12px}
+.admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:6px 0 24px}
+.admin-stats div{background:var(--green-soft);border-radius:14px;padding:14px}
+.admin-stats strong{display:block;font:800 26px Manrope,sans-serif;color:var(--green)}
+.admin-stats span{font-size:12px;color:var(--muted)}
+.admin-filter{border:1px solid var(--line);border-radius:10px;padding:10px;width:100%;margin:8px 0 12px;font-size:13px}
+.pending-item .tag{display:inline-block;font-size:10px;font-weight:700;padding:3px 7px;border-radius:12px;background:#fff1d6;color:#8a5a00;margin-left:6px}
+.pending-item .tag.ok{background:#e7f1e6;color:#315b43}
+.pending-item .tag.bad{background:#faeae8;color:#a64b42}
+.pending-actions{flex-wrap:wrap;justify-content:flex-end}
+.admin-edit-grid{margin-top:8px}
+.admin-section-actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:700px){.member-buttons{grid-template-columns:1fr}.mini-alert{flex-wrap:wrap}.mini-alert-actions{flex-direction:row;width:100%}}

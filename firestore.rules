@@ -1,30 +1,117 @@
 rules_version = '2';
+// Pets Bela Vista — regras completas do Cloud Firestore
+// Publique este arquivo inteiro em: Firebase Console > Firestore Database > Regras.
 service cloud.firestore {
- match /databases/{database}/documents {
-  function isAdmin(){return request.auth != null && request.auth.uid == "9DorSyAFJEdAkrtzjMxjLDst0sa2";}
-  function isMember(){return request.auth != null && exists(/databases/$(database)/documents/members/$(request.auth.uid)) && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.active == true;}
-  match /members/{uid} {
-   allow create: if request.auth != null && request.auth.uid == uid && request.resource.data.active == true && request.resource.data.keys().hasOnly(["name","phone","active","createdAt"]);
-   allow read: if isAdmin() || (request.auth != null && request.auth.uid == uid);
-   allow update, delete: if isAdmin();
+  match /databases/{database}/documents {
+
+    // ---------- Funções auxiliares ----------
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.uid == "9DorSyAFJEdAkrtzjMxjLDst0sa2"; }
+    function memberDoc() { return /databases/$(database)/documents/members/$(request.auth.uid); }
+    function isMember() { return signedIn() && exists(memberDoc()) && get(memberDoc()).data.active == true; }
+    function incoming() { return request.resource.data; }
+    function isOwnerOf(res) { return signedIn() && res.data.ownerUid == request.auth.uid; }
+    function keepsOwner() { return incoming().ownerUid == request.auth.uid; }
+    function shortText(field, max) { return !(field in incoming()) || (incoming()[field] is string && incoming()[field].size() <= max); }
+    function petOwnedByMe(petId) {
+      return exists(/databases/$(database)/documents/pets_public/$(petId)) &&
+             get(/databases/$(database)/documents/pets_public/$(petId)).data.ownerUid == request.auth.uid;
+    }
+
+    // ---------- Moradores ----------
+    // Cadastro individual, sem aprovação manual: a conta já nasce ativa.
+    // Bloqueio/reativação é feito apenas pela administração.
+    match /members/{uid} {
+      allow create: if signedIn() && request.auth.uid == uid
+                    && incoming().active == true
+                    && incoming().keys().hasOnly(["name", "phone", "active", "createdAt"])
+                    && incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 70
+                    && incoming().phone is string && incoming().phone.size() <= 20;
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- Pets (perfil público: sem telefone e sem endereço) ----------
+    function validPublicPet() {
+      return incoming().keys().hasOnly(["name", "type", "breed", "size", "traits", "description", "photo", "ownerUid", "createdAt", "updatedAt"])
+          && incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 40
+          && incoming().type in ["Cachorro", "Gato", "Outro"]
+          && shortText("breed", 50) && shortText("size", 20) && shortText("traits", 180) && shortText("description", 240)
+          && shortText("photo", 900000);
+    }
+    match /pets_public/{id} {
+      allow read: if true;
+      allow create: if isAdmin() || (isMember() && keepsOwner() && validPublicPet());
+      allow update: if isAdmin() || (isMember() && isOwnerOf(resource) && keepsOwner() && validPublicPet());
+      allow delete: if isAdmin() || (isMember() && isOwnerOf(resource));
+    }
+
+    // ---------- Contatos dos responsáveis (somente moradores conectados) ----------
+    // Lido por moradores quando o responsável autorizou (allowAlerts), pelo próprio dono e pela administração.
+    match /pet_alert_contacts/{id} {
+      allow read: if isAdmin() || (isMember() && (resource.data.allowAlerts == true || isOwnerOf(resource)));
+      allow create: if isAdmin() || (isMember() && keepsOwner()
+                    && incoming().keys().hasOnly(["petId", "petName", "guardians", "allowAlerts", "ownerUid"])
+                    && incoming().guardians is list && incoming().guardians.size() <= 3
+                    && incoming().allowAlerts is bool);
+      allow update: if isAdmin() || (isMember() && isOwnerOf(resource) && keepsOwner()
+                    && incoming().keys().hasOnly(["petId", "petName", "guardians", "allowAlerts", "ownerUid"])
+                    && incoming().guardians is list && incoming().guardians.size() <= 3
+                    && incoming().allowAlerts is bool);
+      allow delete: if isAdmin() || (isMember() && isOwnerOf(resource));
+    }
+
+    // ---------- Endereço / referências da casa (privado: dono e administração) ----------
+    match /pet_private/{id} {
+      allow read: if isAdmin() || isOwnerOf(resource);
+      allow create: if isAdmin() || (isMember() && keepsOwner()
+                    && incoming().keys().hasOnly(["petId", "ownerUid", "street", "number", "referenceUnit", "houseColor", "nearbyReference"]));
+      allow update: if isAdmin() || (isMember() && isOwnerOf(resource) && keepsOwner()
+                    && incoming().keys().hasOnly(["petId", "ownerUid", "street", "number", "referenceUnit", "houseColor", "nearbyReference"]));
+      allow delete: if isAdmin() || (isMember() && isOwnerOf(resource));
+    }
+
+    // ---------- Alertas de desaparecimento ----------
+    // O próprio responsável publica e encerra o alerta do seu pet (id do documento = id do pet).
+    match /lost_public/{id} {
+      allow read: if true;
+      allow create: if isAdmin() || (isMember() && keepsOwner() && incoming().status == "active"
+                    && incoming().petId == id && petOwnedByMe(id)
+                    && shortText("location", 140) && shortText("notes", 400) && shortText("photo", 900000));
+      allow update: if isAdmin() || (isMember() && isOwnerOf(resource) && keepsOwner()
+                    && incoming().petId == resource.data.petId
+                    && incoming().status in ["active", "resolved"]
+                    && shortText("location", 140) && shortText("notes", 400) && shortText("photo", 900000));
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Avistamentos de pets cadastrados ----------
+    match /sightings/{id} {
+      allow create: if isMember() && incoming().reporterUid == request.auth.uid
+                    && shortText("location", 140) && shortText("notes", 300);
+      allow read: if isAdmin() || (signedIn() && resource.data.petOwnerUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- Animais encontrados na rua ----------
+    match /found_public/{id} {
+      allow read: if isAdmin() || resource.data.status == "active";
+      allow create, update, delete: if isAdmin();
+    }
+    match /found_submissions/{id} {
+      allow create: if incoming().status == "pending"
+                    && shortText("location", 120) && shortText("traits", 180) && shortText("photo", 900000);
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------- Reivindicações ----------
+    match /claim_submissions/{id} {
+      allow create: if incoming().status == "pending" && shortText("proof", 500);
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------- Coleções antigas (somente leitura/limpeza pela administração) ----------
+    match /pet_submissions/{id} { allow read, update, delete: if isAdmin(); }
+    match /lost_submissions/{id} { allow read, update, delete: if isAdmin(); }
   }
-  match /pets_public/{id} {
-   allow read: if true;
-   allow create: if isMember() && request.resource.data.ownerUid == request.auth.uid;
-   allow update: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid);
-   allow delete: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid);
-  }
-  match /pet_alert_contacts/{id} {
-   allow read: if isAdmin() || (isMember() && (resource.data.allowAlerts == true || resource.data.ownerUid == request.auth.uid));
-   allow create: if isMember() && request.resource.data.ownerUid == request.auth.uid;
-   allow update: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid);
-   allow delete: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid);
-  }
-  match /found_public/{id} { allow read: if isAdmin() || resource.data.status == "active"; allow create, update, delete: if isAdmin(); }
-  match /lost_public/{id} { allow read: if true; allow create, update, delete: if isAdmin(); }
-  match /pet_submissions/{id} { allow create: if isMember(); allow read, update, delete: if isAdmin(); }
-  match /found_submissions/{id} { allow create: if request.resource.data.status == "pending"; allow read, update, delete: if isAdmin(); }
-  match /lost_submissions/{id} { allow create: if isMember() && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == "pending"; allow read, update, delete: if isAdmin(); }
-  match /claim_submissions/{id} { allow create: if request.resource.data.status == "pending"; allow read, update, delete: if isAdmin(); }
- }
 }

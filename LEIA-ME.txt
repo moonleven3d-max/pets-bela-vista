@@ -1,17 +1,26 @@
-PETS BELA VISTA — PACOTE DE CORREÇÕES
+PETS BELA VISTA — VERSÃO 3 (correções gerais)
 
-Arquivos do site e da administração.
+ARQUIVOS ALTERADOS
+index.html, app.js, admin.html, admin.js, styles.css, sw.js, firestore.rules, LEIA-ME.txt
 
-PUBLICAÇÃO
-1. Extraia o ZIP e envie o CONTEÚDO da pasta pet-do-bairro para a raiz do repositório GitHub.
-2. No Firebase Console > Firestore Database > Regras, publique o conteúdo de firestore.rules.
-3. Aguarde o deploy da Cloudflare Pages e teste /admin.html.
+PUBLICAÇÃO (nesta ordem)
+1. Firebase Console > Firestore Database > Regras: apague tudo e cole o conteúdo COMPLETO de firestore.rules. Clique em Publicar.
+   (Sem as regras novas, cadastro de moradores, pets e alertas vai dar "sem permissão".)
+2. Envie os arquivos alterados para a raiz do repositório GitHub (substituindo os antigos).
+3. Aguarde o deploy da Cloudflare Pages.
+4. Entre em /admin.html e, se aparecer o botão "Separar dados privados antigos", clique nele uma vez.
+5. Ainda no admin, abra a Lua (e outros pets "sem morador vinculado") e escolha o morador em "Responsável".
 
-ADMINISTRADOR
-O login administrativo continua sendo o usuário Firebase cujo UID está em firebase-config.js. Se o login falhar, o erro agora informa o código Firebase. Confirme no Authentication que o usuário existe e que seu UID corresponde ao ADMIN_UID.
+COMO FUNCIONA AGORA
+- Morador: WhatsApp + senha. "Criar acesso" libera na hora (sem e-mail, SMS ou aprovação).
+- Pets: salvos direto em pets_public, vinculados ao UID de quem cadastrou; aparecem em Meus pets na hora.
+- Dados: perfil público (pets_public) sem telefone/endereço; contatos (pet_alert_contacts) só para moradores
+  conectados e só se o tutor autorizar; endereço (pet_private) só para o dono e a administração.
+- Alertas: o tutor publica e encerra o alerta do próprio pet. Cada pet tem link próprio: /pet/ID
+- Avistamentos: morador escolhe o pet, informa local/hora, o sistema monta a mensagem de WhatsApp do tutor.
+- Animais encontrados: enviados por qualquer pessoa e publicados pela administração (sem o telefone de quem registrou).
 
-RECUPERAÇÃO DE SENHA DO MORADOR
-Como o login dos moradores usa um e-mail interno derivado do WhatsApp e não usa e-mail/SMS de recuperação, não é seguro redefinir a senha de outra pessoa diretamente pelo navegador. Isso exige uma função de servidor protegida (Firebase Cloud Functions + Admin SDK) ou um processo manual seguro no Firebase Authentication. Este pacote informa ao morador que deve contatar a administração; não finge redefinir a senha.
-
-PRIVACIDADE
-Os números de WhatsApp só podem ser lidos por moradores autenticados quando autorizados, ou pelo administrador. Os campos de referência da casa não são incluídos no documento público do pet.
+REDEFINIR SENHA DE MORADOR
+Não é possível com segurança só pelo navegador. Hoje: excluir a conta no Firebase Authentication,
+pedir para o morador criar de novo e vincular os pets à nova conta pelo admin.
+Solução definitiva: uma função de servidor com o Firebase Admin SDK (ex.: Cloudflare Pages Function + conta de serviço).

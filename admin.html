@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#315b43"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css">
+  <meta name="theme-color" content="#315b43"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/styles.css">
   <title>Administração · Pets Bela Vista</title>
 </head>
 <body>
@@ -17,7 +17,17 @@
   <div class="section-heading"><div><span class="eyebrow">ÁREA RESTRITA</span><h2>Administração</h2><p>Gerencie cadastros, animais encontrados, reivindicações e alertas de desaparecimento.</p></div></div>
   <section class="admin-panel admin-page-panel">
     <div class="admin-login" id="adminLogin"><h3 class="admin-login-title">Entrar na administração</h3><label>E-mail<input type="email" id="adminEmail" placeholder="E-mail da administradora" autocomplete="username"></label><label>Senha<input type="password" id="adminPassword" placeholder="Sua senha" autocomplete="current-password"></label><button class="button button-primary" id="loginBtn">Entrar</button><small>Acesso exclusivo da conta administradora cadastrada no Firebase.</small></div>
-    <div id="adminContent" hidden><div class="admin-head"><h3>Solicitações para analisar <span class="count-pill" id="pendingCount">0</span></h3><button class="text-btn" id="logoutBtn">Sair</button></div><div id="pendingList" class="pending-list"></div><section class="admin-data-section"><div class="admin-head"><h3>Pets cadastrados <span class="count-pill" id="adminPetsCount">0</span></h3></div><div id="adminPetsList" class="pending-list"></div></section><section class="admin-data-section"><div class="admin-head"><h3>Alertas de desaparecimento <span class="count-pill" id="adminLostCount">0</span></h3></div><div id="adminLostList" class="pending-list"></div></section><section class="admin-data-section"><div class="admin-head"><h3>Animais encontrados <span class="count-pill" id="adminFoundCount">0</span></h3></div><div id="adminFoundList" class="pending-list"></div></section><section class="members-admin"><div class="admin-head"><h3>Moradores cadastrados <span class="count-pill" id="membersCount">0</span></h3></div><div id="membersList" class="pending-list"></div></section><div class="admin-tools"><button class="text-btn" id="exportBtn">Exportar cadastros (JSON)</button></div></div>
+    <div id="adminContent" hidden>
+      <div class="admin-head"><h3>Painel geral</h3><div class="admin-section-actions"><button class="text-btn" id="reloadBtn">Atualizar</button><button class="text-btn" id="logoutBtn">Sair</button></div></div>
+      <div class="admin-stats" id="adminStats"></div>
+      <section class="admin-data-section"><div class="admin-head"><h3>Solicitações para analisar <span class="count-pill" id="pendingCount">0</span></h3></div><p class="admin-note">Animais encontrados enviados por moradores ou visitantes, reivindicações e cadastros/alertas antigos que ficaram pendentes.</p><div id="pendingList" class="pending-list"></div></section>
+      <section class="admin-data-section"><div class="admin-head"><h3>Pets cadastrados <span class="count-pill" id="adminPetsCount">0</span></h3><button class="text-btn" id="migrateBtn">Separar dados privados antigos</button></div><input class="admin-filter" id="petsFilter" type="search" placeholder="Buscar por nome do pet, espécie ou morador..."><div id="adminPetsList" class="pending-list"></div></section>
+      <section class="admin-data-section members-admin"><div class="admin-head"><h3>Moradores <span class="count-pill" id="membersCount">0</span></h3></div><input class="admin-filter" id="membersFilter" type="search" placeholder="Buscar por nome ou WhatsApp..."><div id="membersList" class="pending-list"></div></section>
+      <section class="admin-data-section"><div class="admin-head"><h3>Alertas de desaparecimento <span class="count-pill" id="adminLostCount">0</span></h3></div><div id="adminLostList" class="pending-list"></div></section>
+      <section class="admin-data-section"><div class="admin-head"><h3>Animais encontrados publicados <span class="count-pill" id="adminFoundCount">0</span></h3></div><div id="adminFoundList" class="pending-list"></div></section>
+      <section class="admin-data-section"><div class="admin-head"><h3>Avistamentos registrados <span class="count-pill" id="adminSightCount">0</span></h3></div><div id="adminSightList" class="pending-list"></div></section>
+      <div class="admin-tools"><button class="text-btn" id="exportBtn">Exportar cadastros (JSON)</button></div>
+    </div>
   </section>
 </main>
 <div class="modal-backdrop" id="memberDetailsModal" hidden>
@@ -29,6 +39,31 @@
     <div id="memberDetailsBody"></div>
   </section>
 </div>
+<div class="modal-backdrop" id="petEditModal" hidden>
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="petEditTitle">
+    <div class="modal-head"><div><span class="eyebrow">ADMINISTRAÇÃO DO PET</span><h2 id="petEditTitle">Pet</h2><p>Corrija o cadastro, veja os dados privados e vincule o pet a um morador.</p></div><button class="close-btn" id="closePetEdit" aria-label="Fechar">×</button></div>
+    <form id="petEditForm"><div class="form-grid admin-edit-grid">
+      <label>Nome *<input name="name" required maxlength="40"></label>
+      <label>Espécie *<select name="type" required><option>Cachorro</option><option>Gato</option><option>Outro</option></select></label>
+      <label>Raça<input name="breed" maxlength="50"></label>
+      <label>Porte<select name="size"><option value="">Não informado</option><option>Pequeno</option><option>Médio</option><option>Grande</option></select></label>
+      <label class="full">Cor e características<textarea name="traits" maxlength="180" rows="2"></textarea></label>
+      <label class="full">Descrição<input name="description" maxlength="240"></label>
+      <div class="form-divider full">VÍNCULO COM MORADOR</div>
+      <label class="full">Responsável (conta do morador)<select name="ownerUid" id="petEditOwner"></select></label>
+      <div class="form-divider full">CONTATOS DOS RESPONSÁVEIS</div>
+      <label>Responsável 1<input name="g0n" maxlength="70"></label><label>WhatsApp 1<input name="g0p" maxlength="20"></label>
+      <label>Responsável 2<input name="g1n" maxlength="70"></label><label>WhatsApp 2<input name="g1p" maxlength="20"></label>
+      <label>Responsável 3<input name="g2n" maxlength="70"></label><label>WhatsApp 3<input name="g2p" maxlength="20"></label>
+      <label class="full consent"><input type="checkbox" name="allowAlerts" value="yes"> Contatos visíveis para moradores conectados</label>
+      <div class="form-divider full">ENDEREÇO (PRIVADO)</div>
+      <label>Rua<input name="street" maxlength="80"></label><label>Número / casa<input name="number" maxlength="20"></label>
+      <label>Geminado<input name="referenceUnit" maxlength="30"></label><label>Cor da casa<input name="houseColor" maxlength="40"></label>
+      <label class="full">Referência próxima<input name="nearbyReference" maxlength="120"></label>
+    </div>
+    <div class="admin-section-actions" style="margin-top:18px"><button class="button button-primary" type="submit">Salvar alterações</button><button class="button button-outline-light danger-text" type="button" id="petDeleteBtn">Excluir pet</button><a class="button button-outline-light" id="petViewLink" target="_blank" rel="noopener">Ver página pública ↗</a></div></form>
+  </section>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="admin.js"></script>
+<script type="module" src="/admin.js"></script>
 </body></html>
