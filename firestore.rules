@@ -3,14 +3,26 @@ service cloud.firestore {
  match /databases/{database}/documents {
   function isAdmin(){return request.auth != null && request.auth.uid == "9DorSyAFJEdAkrtzjMxjLDst0sa2";}
   function isMember(){return request.auth != null && exists(/databases/$(database)/documents/members/$(request.auth.uid)) && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.active == true;}
-  match /pets_public/{id}{allow read:if true;allow create,update,delete:if isAdmin();}
-  match /pet_alert_contacts/{id}{allow read:if isMember() && resource.data.allowAlerts==true;allow create,update,delete:if isAdmin();}
-  match /members/{uid}{allow create:if request.auth != null && request.auth.uid == uid && request.resource.data.active == true && request.resource.data.keys().hasOnly(["name","phone","active","createdAt"]) && request.resource.data.name is string && request.resource.data.phone is string;allow read:if isAdmin() || (request.auth != null && request.auth.uid == uid);allow update,delete:if isAdmin();}
-  match /found_public/{id}{allow read:if resource.data.status == "active";allow create,update,delete:if isAdmin();}
-  match /pet_submissions/{id}{allow create:if request.resource.data.status=="pending" && request.resource.data.keys().hasOnly(["name","type","breed","size","traits","owner","phone","owner2","phone2","owner3","phone3","street","number","reference","guardians","allowAlerts","photo","status","createdAt"]) && request.resource.data.name is string && request.resource.data.name.size()>0 && request.resource.data.name.size()<=40 && request.resource.data.type in ["Cachorro","Gato","Outro"] && request.resource.data.owner is string && request.resource.data.phone is string && request.resource.data.street is string && request.resource.data.number is string && request.resource.data.reference is string && request.resource.data.reference.size() <= 120 && request.resource.data.traits is string && request.resource.data.photo is string && request.resource.data.photo.size()<=900000;allow read,update,delete:if isAdmin();}
-  match /found_submissions/{id}{allow create:if request.resource.data.status=="pending" && request.resource.data.keys().hasOnly(["type","appearance","traits","location","seenDate","reporter","phone","photo","status","createdAt"]) && request.resource.data.type in ["Cachorro","Gato","Outro"] && request.resource.data.traits is string && request.resource.data.location is string && request.resource.data.seenDate is string && request.resource.data.reporter is string && request.resource.data.phone is string && request.resource.data.photo is string && request.resource.data.photo.size()<=900000;allow read,update,delete:if isAdmin();}
-  match /lost_public/{id}{allow read:if true;allow create,update,delete:if isAdmin();}
-  match /lost_submissions/{id}{allow create:if isMember() && request.resource.data.status=="pending" && request.resource.data.ownerUid==request.auth.uid && request.resource.data.keys().hasOnly(["petId","name","photo","location","seenAt","notes","ownerUid","status","createdAt"]) && request.resource.data.petId is string && request.resource.data.name is string && request.resource.data.location is string && request.resource.data.seenAt is string;allow read,update,delete:if isAdmin();}
-  match /claim_submissions/{id}{allow create:if request.resource.data.status=="pending" && request.resource.data.keys().hasOnly(["foundPetId","owner","phone","proof","status","createdAt"]) && request.resource.data.foundPetId is string && request.resource.data.owner is string && request.resource.data.phone is string && request.resource.data.proof is string;allow read,update,delete:if isAdmin();}
+  match /pets_public/{id} {
+   allow read: if true;
+   allow create: if isMember() && request.resource.data.ownerUid == request.auth.uid;
+   allow update, delete: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid);
+  }
+  match /pet_alert_contacts/{id} {
+   allow read: if isMember() && (resource.data.allowAlerts == true || resource.data.ownerUid == request.auth.uid);
+   allow create, update: if isMember() && request.resource.data.ownerUid == request.auth.uid;
+   allow delete: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid);
+  }
+  match /members/{uid} {
+   allow create: if request.auth != null && request.auth.uid == uid && request.resource.data.active == true && request.resource.data.keys().hasOnly(["name","phone","active","createdAt"]);
+   allow read: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+   allow update, delete: if isAdmin();
+  }
+  match /found_public/{id} { allow read: if resource.data.status == "active"; allow create, update, delete: if isAdmin(); }
+  match /pet_submissions/{id} { allow create: if isMember(); allow read, update, delete: if isAdmin(); }
+  match /found_submissions/{id} { allow create: if request.resource.data.status == "pending"; allow read, update, delete: if isAdmin(); }
+  match /lost_public/{id} { allow read: if true; allow create, update, delete: if isAdmin(); }
+  match /lost_submissions/{id} { allow create: if isMember() && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == "pending"; allow read, update, delete: if isAdmin(); }
+  match /claim_submissions/{id} { allow create: if request.resource.data.status == "pending"; allow read, update, delete: if isAdmin(); }
  }
 }

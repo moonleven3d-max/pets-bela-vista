@@ -17,7 +17,7 @@
   <div class="section-heading"><div><span class="eyebrow">ÁREA RESTRITA</span><h2>Administração</h2><p>Gerencie cadastros, animais encontrados, reivindicações e alertas de desaparecimento.</p></div></div>
   <section class="admin-panel admin-page-panel">
     <div class="admin-login" id="adminLogin"><h3 class="admin-login-title">Entrar na administração</h3><label>E-mail<input type="email" id="adminEmail" placeholder="E-mail da administradora" autocomplete="username"></label><label>Senha<input type="password" id="adminPassword" placeholder="Sua senha" autocomplete="current-password"></label><button class="button button-primary" id="loginBtn">Entrar</button><small>Acesso exclusivo da conta administradora cadastrada no Firebase.</small></div>
-    <div id="adminContent" hidden><div class="admin-head"><h3>Solicitações para analisar <span class="count-pill" id="pendingCount">0</span></h3><button class="text-btn" id="logoutBtn">Sair</button></div><div id="pendingList" class="pending-list"></div><div class="admin-tools"><button class="text-btn" id="exportBtn">Exportar cadastros (JSON)</button></div></div>
+    <div id="adminContent" hidden><div class="admin-head"><h3>Solicitações para analisar <span class="count-pill" id="pendingCount">0</span></h3><button class="text-btn" id="logoutBtn">Sair</button></div><div id="pendingList" class="pending-list"></div><section class="members-admin"><div class="admin-head"><h3>Moradores cadastrados <span class="count-pill" id="membersCount">0</span></h3></div><div id="membersList" class="pending-list"></div></section><div class="admin-tools"><button class="text-btn" id="exportBtn">Exportar cadastros (JSON)</button></div></div>
   </section>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>

@@ -44,3 +44,13 @@
 .admin-login .button{height:44px;min-width:120px}
 @media(max-width:900px){.admin-topbar{height:auto;min-height:76px;flex-wrap:wrap;padding:12px 20px;gap:10px}.admin-nav{order:3;width:100%;overflow:auto;margin:0;justify-content:flex-start}.admin-nav a{font-size:12px;padding:9px 11px}.admin-home-link{margin-left:auto}}
 @media(max-width:800px){.hero-photo-wrap{width:58%;height:210px;right:-45px;bottom:-20px;border-radius:18px}.hero-photo{object-position:center center}.admin-page{padding-top:24px}.admin-page-panel{padding:18px}.admin-login{flex-direction:column}.admin-login label{min-width:0}.admin-login .button{width:100%}}
+
+/* Três indicadores e gestão de moradores */
+.stats-modern{grid-template-columns:repeat(3,1fr)}
+.stat-alert{background:#f0edfa}.stat-alert svg{stroke:#56508d}
+.stats-modern div:nth-child(2){border-right:1px solid var(--line)}
+.members-admin{margin-top:34px;padding-top:24px;border-top:1px solid var(--line)}
+.members-admin .admin-head{margin-bottom:14px}
+.members-admin .pending-placeholder{display:grid;place-items:center;width:64px;height:64px;border-radius:14px;background:#edf3e7;color:#315b43;font-size:26px;flex-shrink:0}
+.edit-pet{margin-top:8px}
+@media(max-width:800px){.stats-modern{grid-template-columns:1fr}.stats-modern div{border-right:0!important;border-bottom:1px solid var(--line);padding:10px}.stats-modern div:last-child{border-bottom:0}}
