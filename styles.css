@@ -159,3 +159,10 @@
   .install-btn{padding:9px 11px!important}
   .install-label{display:none}
 }
+
+/* Fotos quadradas */
+.pet-photo,.pet-photo-placeholder{height:auto!important;aspect-ratio:1/1;width:100%;object-fit:cover;object-position:center}
+.details-photo{width:100%;max-width:440px;max-height:none;aspect-ratio:1/1;object-fit:cover;display:block;margin:8px auto 16px}
+.visually-hidden-file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.edit-preview{width:90px;height:90px;object-fit:cover;border-radius:12px}
+.pet-card-click .pet-photo{transition:transform .25s}.pet-card-click:hover .pet-photo{transform:scale(1.02)}

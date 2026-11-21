@@ -42,7 +42,7 @@
 <div class="modal-backdrop" id="petEditModal" hidden>
   <section class="modal" role="dialog" aria-modal="true" aria-labelledby="petEditTitle">
     <div class="modal-head"><div><span class="eyebrow">ADMINISTRAÇÃO DO PET</span><h2 id="petEditTitle">Pet</h2><p>Corrija o cadastro, veja os dados privados e vincule o pet a um morador.</p></div><button class="close-btn" id="closePetEdit" aria-label="Fechar">×</button></div>
-    <form id="petEditForm"><div class="form-grid admin-edit-grid">
+    <form id="petEditForm"><div class="photo-upload"><label for="petEditPhoto" class="upload-box"><span>＋</span><b>Trocar foto</b><small>JPG, PNG ou WEBP</small></label><input id="petEditPhoto" type="file" accept="image/*" class="visually-hidden-file"><img id="petEditPreview" class="edit-preview" alt="Foto do pet"></div><div class="form-grid admin-edit-grid">
       <label>Nome *<input name="name" required maxlength="40"></label>
       <label>Espécie *<select name="type" required><option>Cachorro</option><option>Gato</option><option>Outro</option></select></label>
       <label>Sexo<select name="sex"><option value="">Não informado</option><option>Fêmea</option><option>Macho</option></select></label><label>Castrado(a)?<select name="neutered"><option value="">Não informado</option><option>Sim</option><option>Não</option></select></label><label>Raça<input name="breed" maxlength="50"></label>

@@ -291,6 +291,8 @@ async function savePet(e) {
     batch.set(doc(db, "pets_public", id), publicPet);
     batch.set(doc(db, "pet_alert_contacts", id), { petId: id, petName: publicPet.name, guardians, allowAlerts: d.allowAlerts === "yes", ...owners });
     batch.set(doc(db, "pet_private", id), { petId: id, ...owners, street: d.street.trim(), number: d.number.trim(), referenceUnit: d.referenceUnit.trim(), houseColor: d.houseColor.trim(), nearbyReference: d.nearbyReference.trim() });
+    const alertDoc = alertFor(id);
+    if (alertDoc && alertDoc.id === id && alertDoc.photo !== photo) batch.update(doc(db, "lost_public", id), { photo, name: publicPet.name });
     await batch.commit();
     modal("formModal", false); resetPetForm();
     toast(editId ? "Cadastro atualizado!" : `${publicPet.name} foi cadastrado(a) e já aparece em Meus pets! 🐾`);

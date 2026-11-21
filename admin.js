@@ -126,10 +126,23 @@ function openMemberDetails(id) {
 }
 
 // ---------- edição do pet ----------
+function compress(file) {
+  return new Promise((res, rej) => {
+    if (!file.type.startsWith("image/")) return rej(Error("Escolha uma imagem."));
+    createImageBitmap(file).then(b => {
+      const sc = Math.min(1, 720 / Math.max(b.width, b.height)), c = document.createElement("canvas");
+      c.width = Math.round(b.width * sc); c.height = Math.round(b.height * sc);
+      c.getContext("2d").drawImage(b, 0, 0, c.width, c.height);
+      res(c.toDataURL("image/jpeg", .7));
+    }).catch(() => rej(Error("Não foi possível ler esta imagem.")));
+  });
+}
 function openPetEdit(id) {
   const p = L.pets.find(x => x.id === id); if (!p) return;
   const c = contactOf(id) || {}, pr = privOf(id) || {}, f = $("petEditForm");
   f.dataset.id = id;
+  $("petEditPhoto").value = ""; delete $("petEditPhoto").dataset.compressed;
+  $("petEditPreview").src = p.photo || ""; $("petEditPreview").hidden = !p.photo;
   $("petEditTitle").textContent = p.name;
   for (const k of ["name", "type", "sex", "neutered", "breed", "size", "traits", "description"]) f.elements[k].value = p[k] || "";
   const opts = [...L.members].sort((a, b) => (a.name || "").localeCompare(b.name || "", "pt-BR"));
@@ -153,10 +166,10 @@ async function savePetEdit(e) {
   const guardians = [0, 1, 2].map(i => ({ name: d[`g${i}n`].trim(), phone: d[`g${i}p`].trim() })).filter(g => g.name || g.phone);
   try {
     const b = writeBatch(db);
-    b.set(doc(db, "pets_public", id), { name: d.name.trim(), type: d.type, sex: d.sex || "", neutered: d.neutered || "", breed: d.breed.trim(), size: d.size, traits: d.traits.trim(), description: d.description.trim(), photo: p.photo || "", ...owners, createdAt: p.createdAt || serverTimestamp(), updatedAt: serverTimestamp() });
+    b.set(doc(db, "pets_public", id), { name: d.name.trim(), type: d.type, sex: d.sex || "", neutered: d.neutered || "", breed: d.breed.trim(), size: d.size, traits: d.traits.trim(), description: d.description.trim(), photo: $("petEditPhoto").dataset.compressed || p.photo || "", ...owners, createdAt: p.createdAt || serverTimestamp(), updatedAt: serverTimestamp() });
     b.set(doc(db, "pet_alert_contacts", id), { petId: id, petName: d.name.trim(), guardians, allowAlerts: d.allowAlerts === "yes", ...owners });
     b.set(doc(db, "pet_private", id), { petId: id, ...owners, ...Object.fromEntries(PRIVATE_KEYS.map(k => [k, (d[k] || "").trim()])) });
-    for (const a of L.lost.filter(a => (a.petId || a.id) === id)) b.update(doc(db, "lost_public", a.id), { ...owners, name: d.name.trim() });
+    for (const a of L.lost.filter(a => (a.petId || a.id) === id)) b.update(doc(db, "lost_public", a.id), { ...owners, name: d.name.trim(), ...($("petEditPhoto").dataset.compressed ? { photo: $("petEditPhoto").dataset.compressed } : {}) });
     await b.commit();
     $("petEditModal").hidden = true;
     toast(`Pet salvo. Responsáveis: ${[owner, ...coOwners].filter(Boolean).map(memberName).join(", ") || "nenhum"}.`);
@@ -293,6 +306,7 @@ $("migrateBtn").onclick = migratePrivate;
 $("petsFilter").addEventListener("input", renderPets);
 $("membersFilter").addEventListener("input", renderMembers);
 $("petEditForm").addEventListener("submit", savePetEdit);
+$("petEditPhoto").addEventListener("change", async e => { const file = e.target.files[0]; if (!file) return; try { const d = await compress(file); e.target.dataset.compressed = d; $("petEditPreview").src = d; $("petEditPreview").hidden = false; toast("Foto pronta. Clique em Salvar alterações."); } catch (err) { e.target.value = ""; toast(err.message); } });
 $("petDeleteBtn").onclick = () => deletePet($("petEditForm").dataset.id);
 $("closePetEdit").onclick = () => { $("petEditModal").hidden = true; };
 $("closeMemberDetails").onclick = () => { $("memberDetailsModal").hidden = true; };
