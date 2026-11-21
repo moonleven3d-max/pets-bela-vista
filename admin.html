@@ -6,11 +6,17 @@
   <title>Administração · Pets Bela Vista</title>
 </head>
 <body>
-<header class="topbar"><a class="brand" href="/" aria-label="Pets Bela Vista - início"><span class="brand-mark">🐾</span><span><b>Pets Bela Vista</b><small>Área administrativa</small></span></a></header>
-<main class="section" style="max-width:980px;margin:3rem auto;">
-  <div class="section-heading"><div><span class="eyebrow">ACESSO RESTRITO</span><h2>Área do administrador</h2><p>Entre com o e-mail e a senha da conta administradora cadastrada no Firebase Authentication.</p></div></div>
-  <section class="admin-panel" style="display:block;">
-    <div class="admin-login" id="adminLogin"><label>E-mail<input type="email" id="adminEmail" placeholder="E-mail da administradora" autocomplete="username"></label><label>Senha<input type="password" id="adminPassword" placeholder="Sua senha" autocomplete="current-password"></label><button class="button button-primary" id="loginBtn">Entrar</button><small>Acesso restrito. Se o login falhar, confirme se esta conta possui o UID administrador configurado em firebase-config.js.</small></div>
+<header class="topbar admin-topbar">
+  <a class="brand" href="/" aria-label="Pets Bela Vista - início"><span class="brand-mark">🐾</span><span><b>Pets Bela Vista</b><small>Nossa comunidade, nossos pets</small></span></a>
+  <nav class="admin-nav" aria-label="Navegação principal">
+    <a href="/#inicio">⌂ <span>Início</span></a><a href="/#pets">♧ <span>Pets cadastrados</span></a><a href="/#encontrados">⌖ <span>Pets encontrados</span></a><a href="/#alertas">♧ <span>Alertas</span></a>
+  </nav>
+  <a class="admin-home-link" href="/">Voltar ao site <span>↗</span></a>
+</header>
+<main class="section admin-page" style="max-width:1120px;margin:2.5rem auto;">
+  <div class="section-heading"><div><span class="eyebrow">ÁREA RESTRITA</span><h2>Administração</h2><p>Gerencie cadastros, animais encontrados, reivindicações e alertas de desaparecimento.</p></div></div>
+  <section class="admin-panel admin-page-panel">
+    <div class="admin-login" id="adminLogin"><h3 class="admin-login-title">Entrar na administração</h3><label>E-mail<input type="email" id="adminEmail" placeholder="E-mail da administradora" autocomplete="username"></label><label>Senha<input type="password" id="adminPassword" placeholder="Sua senha" autocomplete="current-password"></label><button class="button button-primary" id="loginBtn">Entrar</button><small>Acesso exclusivo da conta administradora cadastrada no Firebase.</small></div>
     <div id="adminContent" hidden><div class="admin-head"><h3>Solicitações para analisar <span class="count-pill" id="pendingCount">0</span></h3><button class="text-btn" id="logoutBtn">Sair</button></div><div id="pendingList" class="pending-list"></div><div class="admin-tools"><button class="text-btn" id="exportBtn">Exportar cadastros (JSON)</button></div></div>
   </section>
 </main>
