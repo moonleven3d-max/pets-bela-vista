@@ -3,25 +3,27 @@ service cloud.firestore {
  match /databases/{database}/documents {
   function isAdmin(){return request.auth != null && request.auth.uid == "9DorSyAFJEdAkrtzjMxjLDst0sa2";}
   function isMember(){return request.auth != null && exists(/databases/$(database)/documents/members/$(request.auth.uid)) && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.active == true;}
-  match /pets_public/{id} {
-   allow read: if true;
-   allow create: if isMember() && request.resource.data.ownerUid == request.auth.uid;
-   allow update, delete: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid);
-  }
-  match /pet_alert_contacts/{id} {
-   allow read: if isMember() && (resource.data.allowAlerts == true || resource.data.ownerUid == request.auth.uid);
-   allow create, update: if isMember() && request.resource.data.ownerUid == request.auth.uid;
-   allow delete: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid);
-  }
   match /members/{uid} {
    allow create: if request.auth != null && request.auth.uid == uid && request.resource.data.active == true && request.resource.data.keys().hasOnly(["name","phone","active","createdAt"]);
    allow read: if isAdmin() || (request.auth != null && request.auth.uid == uid);
    allow update, delete: if isAdmin();
   }
-  match /found_public/{id} { allow read: if resource.data.status == "active"; allow create, update, delete: if isAdmin(); }
+  match /pets_public/{id} {
+   allow read: if true;
+   allow create: if isMember() && request.resource.data.ownerUid == request.auth.uid;
+   allow update: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid);
+   allow delete: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid);
+  }
+  match /pet_alert_contacts/{id} {
+   allow read: if isAdmin() || (isMember() && (resource.data.allowAlerts == true || resource.data.ownerUid == request.auth.uid));
+   allow create: if isMember() && request.resource.data.ownerUid == request.auth.uid;
+   allow update: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid);
+   allow delete: if isAdmin() || (isMember() && resource.data.ownerUid == request.auth.uid);
+  }
+  match /found_public/{id} { allow read: if isAdmin() || resource.data.status == "active"; allow create, update, delete: if isAdmin(); }
+  match /lost_public/{id} { allow read: if true; allow create, update, delete: if isAdmin(); }
   match /pet_submissions/{id} { allow create: if isMember(); allow read, update, delete: if isAdmin(); }
   match /found_submissions/{id} { allow create: if request.resource.data.status == "pending"; allow read, update, delete: if isAdmin(); }
-  match /lost_public/{id} { allow read: if true; allow create, update, delete: if isAdmin(); }
   match /lost_submissions/{id} { allow create: if isMember() && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == "pending"; allow read, update, delete: if isAdmin(); }
   match /claim_submissions/{id} { allow create: if request.resource.data.status == "pending"; allow read, update, delete: if isAdmin(); }
  }

@@ -1,29 +1,17 @@
-PETS BELA VISTA — ATUALIZAÇÃO DO PAINEL
+PETS BELA VISTA — PACOTE DE CORREÇÕES
 
-Esta versão atualiza a página inicial com:
-- apenas dois indicadores: pets cadastrados e pets encontrados na rua;
-- atalhos Meu pet fugiu, Avisei um pet na rua e Compartilhar pet;
-- painel de alertas ativos e avistamentos recentes;
-- botão de compartilhar link individual de cada pet;
-- formulário para tutor criar alerta de desaparecimento usando um pet já cadastrado.
+Arquivos do site e da administração.
 
 PUBLICAÇÃO
-1. Substitua os arquivos do repositório GitHub pelo conteúdo desta pasta (mantenha os arquivos na raiz).
-2. No Firebase Console > Firestore Database > Regras, publique o conteúdo atualizado de firestore.rules.
-3. A Cloudflare Pages fará um novo deploy automaticamente.
-4. No Firebase Authentication, o login de moradores continua usando o provedor E-mail/senha internamente, sem pedir e-mail ao morador.
+1. Extraia o ZIP e envie o CONTEÚDO da pasta pet-do-bairro para a raiz do repositório GitHub.
+2. No Firebase Console > Firestore Database > Regras, publique o conteúdo de firestore.rules.
+3. Aguarde o deploy da Cloudflare Pages e teste /admin.html.
 
-ALERTAS DE FUGA
-O tutor precisa estar conectado à área dos moradores. O alerta entra como pendente e aparece na área administrativa para aprovação. Depois de aprovado, aparece na página inicial e pode ser compartilhado. Os links individuais usam o identificador do pet no endereço, sem expor dados privados.
+ADMINISTRADOR
+O login administrativo continua sendo o usuário Firebase cujo UID está em firebase-config.js. Se o login falhar, o erro agora informa o código Firebase. Confirme no Authentication que o usuário existe e que seu UID corresponde ao ADMIN_UID.
 
-IMPORTANTE
-- O botão de avistamento leva à seção “Encontrados na rua”; o registro de avistamento continua sendo enviado pelo formulário de animal encontrado.
-- Os links de pet são compartilháveis e apontam para o site; o conteúdo detalhado continua na lista pública.
-- Não publique telefones ou endereços de tutores em coleções públicas.
+RECUPERAÇÃO DE SENHA DO MORADOR
+Como o login dos moradores usa um e-mail interno derivado do WhatsApp e não usa e-mail/SMS de recuperação, não é seguro redefinir a senha de outra pessoa diretamente pelo navegador. Isso exige uma função de servidor protegida (Firebase Cloud Functions + Admin SDK) ou um processo manual seguro no Firebase Authentication. Este pacote informa ao morador que deve contatar a administração; não finge redefinir a senha.
 
-
-ATUALIZAÇÃO DESTE PACOTE
-- O cadastro de pet agora exige um ponto de referência da casa. Esse dado fica privado e é mostrado apenas na área administrativa.
-- Publique o arquivo firestore.rules desta pasta na aba Regras do Cloud Firestore.
-- A área administrativa fica em /admin ou /admin.html. O login usa a conta administradora já cadastrada no Firebase Authentication.
-- Se o painel não carregar, confira no Console do navegador e no Firebase se o UID da conta administradora corresponde ao ADMIN_UID de firebase-config.js.
+PRIVACIDADE
+Os números de WhatsApp só podem ser lidos por moradores autenticados quando autorizados, ou pelo administrador. Os campos de referência da casa não são incluídos no documento público do pet.
